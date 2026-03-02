@@ -1,0 +1,84 @@
+{
+  "name": "zeqium-network",
+  "version": "1.0.0",
+  "client": {
+    "organization": "PoliciaOrg",
+    "connection": {
+      "timeout": {
+        "peer": {
+          "endorser": "300"
+        },
+        "orderer": "300"
+      }
+    }
+  },
+  "channels": {
+    "zeqium-channel": {
+      "orderers": [
+        "orderer.zeqium.com"
+      ],
+      "peers": {
+        "peer0.policia.zeqium.com": {
+          "endorsingPeer": true,
+          "chaincodeQuery": true,
+          "ledgerQuery": true,
+          "eventSource": true
+        },
+        "peer0.hotel.zeqium.com": {
+          "endorsingPeer": true,
+          "chaincodeQuery": true,
+          "ledgerQuery": true,
+          "eventSource": true
+        }
+      }
+    }
+  },
+  "organizations": {
+    "PoliciaOrg": {
+      "mspid": "PoliciaMSP",
+      "peers": [
+        "peer0.policia.zeqium.com"
+      ]
+    },
+    "HotelOrg": {
+      "mspid": "HotelMSP",
+      "peers": [
+        "peer0.hotel.zeqium.com"
+      ]
+    }
+  },
+  "orderers": {
+    "orderer.zeqium.com": {
+      "url": "grpcs://orderer.zeqium.com:7050",
+      "tlsCACerts": {
+        "path": "/home/mgf00042/Zeqium/blockchain/network/crypto-config/ordererOrganizations/zeqium.com/orderers/orderer.zeqium.com/msp/tlscacerts/tlsca.zeqium.com-cert.pem"
+      },
+      "grpcOptions": {
+        "ssl-target-name-override": "orderer.zeqium.com",
+        "hostnameOverride": "orderer.zeqium.com"
+      }
+    }
+  },
+  "peers": {
+    "peer0.policia.zeqium.com": {
+      "url": "grpcs://peer0.policia.zeqium.com:7051",
+      "tlsCACerts": {
+        "path": "/home/mgf00042/Zeqium/blockchain/network/crypto-config/peerOrganizations/policia.zeqium.com/peers/peer0.policia.zeqium.com/tls/ca.crt"
+      },
+      "grpcOptions": {
+        "ssl-target-name-override": "peer0.policia.zeqium.com",
+        "hostnameOverride": "peer0.policia.zeqium.com"
+      }
+    },
+    "peer0.hotel.zeqium.com": {
+      "url": "grpcs://peer0.hotel.zeqium.com:9051",
+      "tlsCACerts": {
+        "path": "/home/mgf00042/Zeqium/blockchain/network/crypto-config/peerOrganizations/hotel.zeqium.com/peers/peer0.hotel.zeqium.com/tls/ca.crt"
+      },
+      "grpcOptions": {
+        "ssl-target-name-override": "peer0.hotel.zeqium.com",
+        "hostnameOverride": "peer0.hotel.zeqium.com"
+      }
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "police-api",
+  "version": "1.0.0",
+  "description": "Backend API for Zeqium police organization",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "fabric-network": "^2.2.20"
+  }
+}
