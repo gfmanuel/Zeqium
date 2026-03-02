@@ -6,8 +6,9 @@ build/
 .DS_Store
 
 # --- Go (Hyperledger Chaincode) ---
-/blockchain/chaincode/go/vendor/
-/blockchain/chaincode/go/zeqium-cc
+/blockchain/chaincode/vendor/
+/blockchain/chaincode/zeqium
+*.tar.gz
 
 # --- Flutter (Mobile) ---
 /mobile/wallet-app/.dart_tool/
@@ -23,6 +24,12 @@ build/
 *.pem
 *.key
 *.tx
+*.block
 
 # --- Docker ---
 .docker/
+
+# --- Binarios y herramientas descargadas ---
+/blockchain/bin/
+/blockchain/builders/
+/blockchain/chaincode/chaincode

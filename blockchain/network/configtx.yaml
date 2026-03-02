@@ -1,0 +1,103 @@
+Organizations:
+    - &OrdererOrg
+        Name: OrdererMSP
+        ID: OrdererMSP
+        MSPDir: crypto-config/ordererOrganizations/zeqium.com/msp
+        Policies:
+            Readers: {Type: Signature, Rule: "OR('OrdererMSP.member')"}
+            Writers: {Type: Signature, Rule: "OR('OrdererMSP.member')"}
+            Admins:  {Type: Signature, Rule: "OR('OrdererMSP.admin')"}
+
+    - &PoliciaOrg
+        Name: PoliciaMSP
+        ID: PoliciaMSP
+        MSPDir: crypto-config/peerOrganizations/policia.zeqium.com/msp
+        Policies:
+            Readers: {Type: Signature, Rule: "OR('PoliciaMSP.admin', 'PoliciaMSP.peer', 'PoliciaMSP.client')"}
+            Writers: {Type: Signature, Rule: "OR('PoliciaMSP.admin', 'PoliciaMSP.client')"}
+            Admins:  {Type: Signature, Rule: "OR('PoliciaMSP.admin')"}
+            Endorsement: {Type: Signature, Rule: "OR('PoliciaMSP.peer')"}
+
+    - &HotelOrg
+        Name: HotelMSP
+        ID: HotelMSP
+        MSPDir: crypto-config/peerOrganizations/hotel.zeqium.com/msp
+        Policies:
+            Readers: {Type: Signature, Rule: "OR('HotelMSP.admin', 'HotelMSP.peer', 'HotelMSP.client')"}
+            Writers: {Type: Signature, Rule: "OR('HotelMSP.admin', 'HotelMSP.client')"}
+            Admins:  {Type: Signature, Rule: "OR('HotelMSP.admin')"}
+            Endorsement: {Type: Signature, Rule: "OR('HotelMSP.peer')"}
+
+Capabilities:
+    Channel: &ChannelCapabilities
+        V2_0: true
+    Orderer: &OrdererCapabilities
+        V2_0: true
+    Application: &ApplicationCapabilities
+        V2_0: true
+
+Application: &ApplicationDefaults
+    Organizations:
+    Policies:
+        Readers: {Type: ImplicitMeta, Rule: "ANY Readers"}
+        Writers: {Type: ImplicitMeta, Rule: "ANY Writers"}
+        Admins:  {Type: ImplicitMeta, Rule: "MAJORITY Admins"}
+        LifecycleEndorsement: {Type: ImplicitMeta, Rule: "MAJORITY Endorsement"}
+        Endorsement: {Type: ImplicitMeta, Rule: "MAJORITY Endorsement"}
+    Capabilities:
+        <<: *ApplicationCapabilities
+
+Orderer: &OrdererDefaults
+    OrdererType: etcdraft
+    Addresses:
+        - orderer.zeqium.com:7050
+    EtcdRaft:
+        Consenters:
+        - Host: orderer.zeqium.com
+          Port: 7050
+          ClientTLSCert: crypto-config/ordererOrganizations/zeqium.com/orderers/orderer.zeqium.com/tls/server.crt
+          ServerTLSCert: crypto-config/ordererOrganizations/zeqium.com/orderers/orderer.zeqium.com/tls/server.crt
+    BatchTimeout: 2s
+    BatchSize:
+        MaxMessageCount: 10
+        AbsoluteMaxBytes: 99 MB
+        PreferredMaxBytes: 512 KB
+    Organizations:
+    Policies:
+        Readers: {Type: ImplicitMeta, Rule: "ANY Readers"}
+        Writers: {Type: ImplicitMeta, Rule: "ANY Writers"}
+        Admins:  {Type: ImplicitMeta, Rule: "MAJORITY Admins"}
+        BlockValidation: {Type: ImplicitMeta, Rule: "ANY Writers"}
+
+Channel: &ChannelDefaults
+    Policies:
+        Readers: {Type: ImplicitMeta, Rule: "ANY Readers"}
+        Writers: {Type: ImplicitMeta, Rule: "ANY Writers"}
+        Admins:  {Type: ImplicitMeta, Rule: "MAJORITY Admins"}
+    Capabilities:
+        <<: *ChannelCapabilities
+
+Profiles:
+    ZeqiumGenesis:
+        <<: *ChannelDefaults
+        Orderer:
+            <<: *OrdererDefaults
+            Organizations:
+                - *OrdererOrg
+            Capabilities:
+                <<: *OrdererCapabilities
+        Consortiums:
+            ZeqiumConsortium:
+                Organizations:
+                    - *PoliciaOrg
+                    - *HotelOrg
+    ZeqiumChannel:
+        Consortium: ZeqiumConsortium
+        <<: *ChannelDefaults
+        Application:
+            <<: *ApplicationDefaults
+            Organizations:
+                - *PoliciaOrg
+                - *HotelOrg
+            Capabilities:
+                <<: *ApplicationCapabilities
