@@ -1,6 +1,7 @@
 const { SDJwtInstance } = require('@sd-jwt/core');
 const { digest } = require('@sd-jwt/crypto-nodejs');
-const issuerIdentity = require('../config/issuer-identity.json');
+// Importamos la clave pública de la policía
+const policeIdentity = require('../config/police-public-key.json');
 const crypto = require('crypto');
 
 class VerifierService {
@@ -23,7 +24,7 @@ class VerifierService {
                 const signingInput = `${headerB64}.${payloadB64}`;
 
                 const publicKey = crypto.createPublicKey({
-                    key: issuerIdentity.publicKeyJWK,
+                    key: policeIdentity.publicKeyJWK,
                     format: 'jwk'
                 });
 
@@ -57,8 +58,9 @@ class VerifierService {
         const [headerB64, payloadB64, signatureB64] = parts;
         const signingInput = `${headerB64}.${payloadB64}`;
 
+        // CORRECCIÓN APLICADA AQUÍ: Se usa policeIdentity
         const publicKey = crypto.createPublicKey({
-            key: issuerIdentity.publicKeyJWK,
+            key: policeIdentity.publicKeyJWK,
             format: 'jwk'
         });
 
@@ -86,7 +88,7 @@ class VerifierService {
 
         // Validación de fechas con tolerancia (leeway = 5 minutos)
         const now = Math.floor(Date.now() / 1000);
-        const leeway = 300; // 5 minutos en segundos
+        const leeway = 300;
 
         if (payload.iat && payload.iat > now + leeway) {
             throw new Error('Token no válido aún (emitido en el futuro)');

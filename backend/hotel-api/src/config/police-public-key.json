@@ -1,0 +1,8 @@
+{
+    "did": "did:zeqium:admin",
+    "publicKeyJWK": {
+        "crv": "Ed25519",
+        "x": "B8s-l89mc0SuEqChAo19UHKgPvusOpS9YHZd6aCiIso",
+        "kty": "OKP"
+    }
+}

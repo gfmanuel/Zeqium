@@ -1,0 +1,17 @@
+{
+    "name": "hotel-api",
+    "version": "1.0.0",
+    "description": "Backend API for Zeqium hotel organization",
+    "main": "src/server.js",
+    "scripts": {
+        "start": "node src/server.js"
+    },
+    "dependencies": {
+        "@sd-jwt/core": "^0.15.0",
+        "@sd-jwt/crypto-nodejs": "^0.15.0",
+        "@sd-jwt/types": "^0.15.0",
+        "express": "^4.21.0",
+        "fabric-network": "^2.2.20",
+        "jose": "^6.1.3"
+    }
+}

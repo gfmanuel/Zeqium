@@ -3,7 +3,7 @@ const path = require('path');
 const { Gateway, Wallets } = require('fabric-network');
 
 // Connection profile for Org1 (Policía)
-const ccp = require('../config/connection-org1.json');
+const ccp = require('../config/connection-police.json');
 
 
 const mspBasePath = '/home/mgf00042/Zeqium/blockchain/network/crypto-config/peerOrganizations/policia.zeqium.com/users/Admin@policia.zeqium.com/msp';
