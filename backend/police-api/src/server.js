@@ -3,7 +3,7 @@ const crypto = require('crypto');
 global.crypto = crypto;
 const { evaluateTransaction, submitTransaction } = require('./controllers/fabricController');
 const issuerService = require('./services/issuerService');
-
+const { pool, initDB } = require('./config/db');
 const app = express();
 const PORT = 3000;
 
@@ -72,6 +72,12 @@ app.post('/api/issuer/credential', async (req, res) => {
     // 3. Anclar el estado en la Blockchain
     await submitTransaction('PublishCredentialStatus', credentialHash, 'did:zeqium:admin', timestamp);
 
+    const insertQuery = `
+      INSERT INTO issued_credentials (did_holder, credential_hash, estado)
+      VALUES ($1, $2, $3)
+    `;
+    await pool.query(insertQuery, [holderDID, credentialHash, 'ACTIVE']);
+
     res.json({
       success: true,
       credential: sdJwt,
@@ -98,6 +104,13 @@ app.post('/api/issuer/revoke', async (req, res) => {
   try {
     await submitTransaction('RevokeCredential', credentialHash, reason || "USER_REQUEST", timestamp);
 
+    const updateQuery = `
+      UPDATE issued_credentials 
+      SET estado = 'REVOKED', fecha_revocacion = CURRENT_TIMESTAMP
+      WHERE credential_hash = $1
+    `;
+    await pool.query(updateQuery, [credentialHash]);
+
     res.json({
       success: true,
       message: "Credencial revocada con éxito en Zeqium",
@@ -110,6 +123,10 @@ app.post('/api/issuer/revoke', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Police Server (Issuer) listening on port ${PORT}`);
+initDB().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Police Server (Issuer) listening on port ${PORT}`);
+  });
+}).catch(err => {
+  console.error("Fallo crítico al arrancar la BD de la policía:", err);
 });
