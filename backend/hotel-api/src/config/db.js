@@ -2,11 +2,11 @@ const { Pool } = require('pg');
 
 // Configuración de la conexión a nuestro contenedor Docker
 const pool = new Pool({
-    user: 'zeqium',
-    host: 'localhost',
-    database: 'hotel_db',
-    password: 'admin',
-    port: 5432,
+    user: process.env.DB_USER || 'zeqium',
+    host: process.env.DB_HOST || 'localhost',
+    database: process.env.DB_NAME || 'hotel_db',
+    password: process.env.DB_PASSWORD || 'admin',
+    port: process.env.DB_PORT || 5432,
 });
 
 // Función para crear la tabla si no existe al arrancar el servidor

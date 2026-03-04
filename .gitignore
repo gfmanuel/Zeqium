@@ -1,128 +1,88 @@
-# --- Node.js (Backend & Frontend) ---
-node_modules/
+# =================================================================
+# ZEQIUM - MASTER GITIGNORE (versión FINAL y completa - marzo 2026)
+# =================================================================
+
+# --- 1. SEGURIDAD Y SECRETOS (CRÍTICO - NUNCA SUBIR) ---
+**/src/config/*-identity.json
+**/config/*-identity.json
+issuer-identity.json
+hotel-identity.json
+police-identity.json
+*.identity.json
+.env
+.env.*
+.env.local
+.env.development
+.env.production
+token.txt
+credentials.json
+*.pem
+*.key
+*.crt
+*.cer
+*.csr
+*.p12
+**/crypto-config/                  # ¡Imprescindible! Todas las claves Fabric (MSP, TLS) están aquí
+**/channel-artifacts/              # Bloques, tx, genesis — generados
+**/wallet/                         # Wallets locales de Fabric
+
+# --- 2. BLOCKCHAIN / FABRIC (GENERADOS Y LOCALES) ---
+**/*.block
+**/*.tx
+genesis.block
+*.tar.gz                           # Paquetes chaincode (zeqium.tar.gz)
+vendor/                            # Go dependencies vendidas
+go.sum                             # Varía por máquina, regenera con go mod tidy
+**/bin/                            # cryptogen, configtxgen, etc.
+**/builders/
+**/fabric-samples/
+**/build/
+
+# --- 3. BACKEND & SHARED (NODE.JS) ---
+**/node_modules/
+**/package-lock.json               # Genera ruido y conflictos; regenera con npm i
+**/npm-debug.log*
+**/yarn-error.log
 dist/
 build/
 .next/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-package-lock.json   # opcional: si usas yarn o pnpm, puedes ignorarlo
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+coverage/
 
-# --- Go (Hyperledger Chaincode) ---
-/blockchain/chaincode/vendor/
-/blockchain/chaincode/zeqium
-*.tar.gz
+# --- 4. MOBILE / FLUTTER ---
+**/mobile/**/.dart_tool/
+**/mobile/**/.idea/
+**/mobile/**/build/
+**/mobile/**/GeneratedPluginRegistrant.*
+**/mobile/**/Generated.xcconfig
+**/mobile/**/.flutter-plugins
+**/mobile/**/.flutter-plugins-dependencies
+**/mobile/**/ios/Flutter/flutter_export_environment.sh
+**/mobile/**/ios/Runner/GeneratedPluginRegistrant.*
 
-# --- Flutter (Mobile) ---
-/mobile/wallet-app/.dart_tool/
-/mobile/wallet-app/.idea/
-/mobile/wallet-app/build/
-/mobile/wallet-app/ios/Flutter/Generated.xcconfig
-/mobile/wallet-app/ios/Flutter/app.flx
-/mobile/wallet-app/ios/Flutter/gen_snapshot/
-/mobile/wallet-app/ios/Runner/GeneratedPluginRegistrant.*
-
-# --- Hyperledger Fabric (SEGURIDAD - ¡muy importante!) ---
-/blockchain/network/crypto-config/
-/blockchain/network/channel-artifacts/
-/blockchain/config/
-/blockchain/*.pem
-/blockchain/*.key
-/blockchain/*.crt
-/blockchain/*.cer
-/blockchain/*.csr
-/blockchain/*.tx
-/blockchain/*.block
-/blockchain/*.json   # si tienes archivos de configuración sensibles
-
-# --- Docker ---
-.docker/
+# --- 5. DOCKER Y ENTORNO LOCAL ---
 docker-compose.override.yml
-
-# --- Binarios y herramientas descargadas ---
-/blockchain/bin/
-/blockchain/builders/
-/blockchain/chaincode/chaincode
-/fabric-samples/
-/bin/
-/config/
-/scripts/
-
-# --- Archivos temporales y de pruebas ---
-token.txt               # ¡muy importante! Contiene tokens reales
 *.log
 *.tmp
-.DS_Store
-Thumbs.db
 *.swp
 *.swo
-
-# --- Editor y OS files ---
-.vscode/
-.idea/
-*.sublime-project
-*.sublime-workspace
-
-# --- Opcional: si generas builds de producción ---
-/dist-backend/
-/dist-mobile/
-
-# Archivos sensibles / secrets
-src/config/issuer-identity.json
-config/issuer-identity.json
-*.key
-*.pem
-*.json  # opcional: si hay más configs sensibles
-
-# Archivos de prueba / temporales
-token.txt
-*.txt  # opcional, si generas muchos de prueba
-
-# Duplicados o innecesarios en raíz
-package-lock.json  # si usas npm en múltiples niveles, mejor ignorar los de raíz
-package.json       # ídem
-test-checkin.js
-
-
-# --- Zeqium: Seguridad de Identidad (Capa 2 & 3) ---
-# Bloquea el archivo generado por generateKey.js
-**/src/config/issuer-identity.json
-**/config/issuer-identity.json
-
-# Bloquea cualquier clave privada accidental
-*.key
-*.pem
-*.p12
-*.cert
-*.csr
-
-# --- Node.js & Backend ---
-node_modules/
-dist/
-build/
-.env*
-npm-debug.log*
-package-lock.json
-
-# --- Hyperledger Fabric (Capa 5: Blockchain) ---
-# ¡CRÍTICO! No subir material criptográfico de la red
-**/crypto-config/
-**/channel-artifacts/
-**/*.block
-**/*.tx
-wallet/
-**/connection-*.json
-
-# --- Herramientas de Desarrollo ---
-generateKey.js
-test-checkin.js
-token.txt
-*.log
 .DS_Store
+Thumbs.db
 .vscode/
 .idea/
+*.code-workspace
+
+# --- 6. SCRIPTS Y PRUEBAS LOCALES ---
+generateKey.js
+generateHotelKey.js
+test-checkin.js
+test-*.js
+**/tests/local/
+
+# --- 7. ARCHIVOS QUE APARECEN EN TU GIT STATUS Y NO DEBEN SUBIRSE ---
+../docker-compose.yaml             # El antiguo con hardcodes (ya borrado)
+../package-lock.json               # Raíz del repo (probablemente generado)
+../blockchain/network/zeqium.tar.gz # Paquete chaincode generado
+../blockchain/chaincode/chaincode  # Posible duplicado o carpeta temporal
+../blockchain/chaincode/zeqium     # Si es la fuente del chaincode, mejor no versionarla entera (usa go.mod y go.sum)
+../blockchain/network/crypto-config/ # ¡Imprescindible! Claves Fabric
+../blockchain/network/connection-*.json # Si tienen rutas absolutas locales (/home/mgf00042/...), mejor regenerarlos o usar variables

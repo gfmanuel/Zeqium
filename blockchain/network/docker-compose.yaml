@@ -1,19 +1,16 @@
-version: '3.7'
-
 networks:
   zeqium-net:
     name: zeqium-net
+    driver: bridge
 
 services:
-
-  # -----------------------------------------------------------------
-  # 1. ORQUESTADOR (Orderer)
-  # -----------------------------------------------------------------
-  orderer.zeqium.com:
-    container_name: orderer.zeqium.com
+  # ===================================================================
+  # 1. ORDERING SERVICE - 3 ORDERERS (Raft) → Tolerancia a 1 fallo
+  # ===================================================================
+  orderer0.zeqium.com:
+    container_name: orderer0.zeqium.com
     image: hyperledger/fabric-orderer:2.5
     environment:
-      - FABRIC_LOGGING_SPEC=INFO
       - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
       - ORDERER_GENERAL_LISTENPORT=7050
       - ORDERER_GENERAL_LOCALMSPID=OrdererMSP
@@ -22,27 +19,71 @@ services:
       - ORDERER_GENERAL_TLS_PRIVATEKEY=/var/hyperledger/orderer/tls/server.key
       - ORDERER_GENERAL_TLS_CERTIFICATE=/var/hyperledger/orderer/tls/server.crt
       - ORDERER_GENERAL_TLS_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
-      - ORDERER_GENERAL_CLUSTER_CLIENTCERT_FILE=/var/hyperledger/orderer/tls/server.crt
-      - ORDERER_GENERAL_CLUSTER_CLIENTKEY_FILE=/var/hyperledger/orderer/tls/server.key
-      - ORDERER_GENERAL_CLUSTER_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
       - ORDERER_GENERAL_BOOTSTRAPMETHOD=file
       - ORDERER_GENERAL_BOOTSTRAPFILE=/var/hyperledger/orderer/orderer.genesis.block
-    working_dir: /opt/gopath/src/github.com/hyperledger/fabric
-    command: orderer
+      - ORDERER_GENERAL_CLUSTER_ENABLED=true
     volumes:
       - ./channel-artifacts/genesis.block:/var/hyperledger/orderer/orderer.genesis.block
-      - ./crypto-config/ordererOrganizations/zeqium.com/orderers/orderer.zeqium.com/msp:/var/hyperledger/orderer/msp
-      - ./crypto-config/ordererOrganizations/zeqium.com/orderers/orderer.zeqium.com/tls/:/var/hyperledger/orderer/tls
+      - ./crypto-config/ordererOrganizations/zeqium.com/orderers/orderer0.zeqium.com/msp:/var/hyperledger/orderer/msp
+      - ./crypto-config/ordererOrganizations/zeqium.com/orderers/orderer0.zeqium.com/tls:/var/hyperledger/orderer/tls
     ports:
       - "7050:7050"
     networks:
       - zeqium-net
 
-  # -----------------------------------------------------------------
-  # 2. ENTIDAD 1 (Autoridad / Nodos y BD)
-  # -----------------------------------------------------------------
-  couchdb_policia:
-    container_name: couchdb_policia
+  orderer1.zeqium.com:
+    container_name: orderer1.zeqium.com
+    image: hyperledger/fabric-orderer:2.5
+    environment:
+      - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
+      - ORDERER_GENERAL_LISTENPORT=8050
+      - ORDERER_GENERAL_LOCALMSPID=OrdererMSP
+      - ORDERER_GENERAL_LOCALMSPDIR=/var/hyperledger/orderer/msp
+      - ORDERER_GENERAL_TLS_ENABLED=true
+      - ORDERER_GENERAL_TLS_PRIVATEKEY=/var/hyperledger/orderer/tls/server.key
+      - ORDERER_GENERAL_TLS_CERTIFICATE=/var/hyperledger/orderer/tls/server.crt
+      - ORDERER_GENERAL_TLS_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+      - ORDERER_GENERAL_BOOTSTRAPMETHOD=file
+      - ORDERER_GENERAL_BOOTSTRAPFILE=/var/hyperledger/orderer/orderer.genesis.block
+      - ORDERER_GENERAL_CLUSTER_ENABLED=true
+    volumes:
+      - ./channel-artifacts/genesis.block:/var/hyperledger/orderer/orderer.genesis.block
+      - ./crypto-config/ordererOrganizations/zeqium.com/orderers/orderer1.zeqium.com/msp:/var/hyperledger/orderer/msp
+      - ./crypto-config/ordererOrganizations/zeqium.com/orderers/orderer1.zeqium.com/tls:/var/hyperledger/orderer/tls
+    ports:
+      - "8050:8050"
+    networks:
+      - zeqium-net
+
+  orderer2.zeqium.com:
+    container_name: orderer2.zeqium.com
+    image: hyperledger/fabric-orderer:2.5
+    environment:
+      - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
+      - ORDERER_GENERAL_LISTENPORT=9050
+      - ORDERER_GENERAL_LOCALMSPID=OrdererMSP
+      - ORDERER_GENERAL_LOCALMSPDIR=/var/hyperledger/orderer/msp
+      - ORDERER_GENERAL_TLS_ENABLED=true
+      - ORDERER_GENERAL_TLS_PRIVATEKEY=/var/hyperledger/orderer/tls/server.key
+      - ORDERER_GENERAL_TLS_CERTIFICATE=/var/hyperledger/orderer/tls/server.crt
+      - ORDERER_GENERAL_TLS_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
+      - ORDERER_GENERAL_BOOTSTRAPMETHOD=file
+      - ORDERER_GENERAL_BOOTSTRAPFILE=/var/hyperledger/orderer/orderer.genesis.block
+      - ORDERER_GENERAL_CLUSTER_ENABLED=true
+    volumes:
+      - ./channel-artifacts/genesis.block:/var/hyperledger/orderer/orderer.genesis.block
+      - ./crypto-config/ordererOrganizations/zeqium.com/orderers/orderer2.zeqium.com/msp:/var/hyperledger/orderer/msp
+      - ./crypto-config/ordererOrganizations/zeqium.com/orderers/orderer2.zeqium.com/tls:/var/hyperledger/orderer/tls
+    ports:
+      - "9050:9050"
+    networks:
+      - zeqium-net
+
+  # ===================================================================
+  # 2. POLICIA MSP - 2 Peers + 2 CouchDB
+  # ===================================================================
+  couchdb0.policia:
+    container_name: couchdb0.policia
     image: couchdb:3.3
     environment:
       - COUCHDB_USER=admin
@@ -52,18 +93,22 @@ services:
     networks:
       - zeqium-net
 
+  couchdb1.policia:
+    container_name: couchdb1.policia
+    image: couchdb:3.3
+    environment:
+      - COUCHDB_USER=admin
+      - COUCHDB_PASSWORD=adminpw
+    ports:
+      - "5985:5984"
+    networks:
+      - zeqium-net
+
   peer0.policia.zeqium.com:
     container_name: peer0.policia.zeqium.com
     image: hyperledger/fabric-peer:2.5
     environment:
-      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
-      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=zeqium-net
-      - FABRIC_LOGGING_SPEC=INFO
-      - CORE_PEER_TLS_ENABLED=true
-      - CORE_PEER_PROFILE_ENABLED=false
-      - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/fabric/tls/server.crt
-      - CORE_PEER_TLS_KEY_FILE=/etc/hyperledger/fabric/tls/server.key
-      - CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/fabric/tls/ca.crt
+      - CORE_VM_ENDPOINT=unix:///var/run/docker.sock
       - CORE_PEER_ID=peer0.policia.zeqium.com
       - CORE_PEER_ADDRESS=peer0.policia.zeqium.com:7051
       - CORE_PEER_LISTENADDRESS=0.0.0.0:7051
@@ -73,25 +118,57 @@ services:
       - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.policia.zeqium.com:7051
       - CORE_PEER_LOCALMSPID=PoliciaMSP
       - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
-      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb_policia:5984
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb0.policia:5984
       - CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME=admin
       - CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD=adminpw
+      - CORE_PEER_TLS_ENABLED=true
     volumes:
-      - /var/run/docker.sock:/host/var/run/docker.sock
       - ./crypto-config/peerOrganizations/policia.zeqium.com/peers/peer0.policia.zeqium.com/msp:/etc/hyperledger/fabric/msp
       - ./crypto-config/peerOrganizations/policia.zeqium.com/peers/peer0.policia.zeqium.com/tls:/etc/hyperledger/fabric/tls
+      - /var/run/docker.sock:/var/run/docker.sock
     ports:
       - "7051:7051"
+      - "7052:7052"
     depends_on:
-      - couchdb_policia
+      - couchdb0.policia
     networks:
       - zeqium-net
 
-  # -----------------------------------------------------------------
-  # 3. ENTIDAD 2 (Servicio / Nodos y BD)
-  # -----------------------------------------------------------------
-  couchdb_hotel:
-    container_name: couchdb_hotel
+  peer1.policia.zeqium.com:
+    container_name: peer1.policia.zeqium.com
+    image: hyperledger/fabric-peer:2.5
+    environment:
+      - CORE_VM_ENDPOINT=unix:///var/run/docker.sock
+      - CORE_PEER_ID=peer1.policia.zeqium.com
+      - CORE_PEER_ADDRESS=peer1.policia.zeqium.com:7053
+      - CORE_PEER_LISTENADDRESS=0.0.0.0:7053
+      - CORE_PEER_CHAINCODEADDRESS=peer1.policia.zeqium.com:7054
+      - CORE_PEER_CHAINCODELISTENADDRESS=0.0.0.0:7054
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer0.policia.zeqium.com:7051
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer1.policia.zeqium.com:7053
+      - CORE_PEER_LOCALMSPID=PoliciaMSP
+      - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb1.policia:5984
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME=admin
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD=adminpw
+      - CORE_PEER_TLS_ENABLED=true
+    volumes:
+      - ./crypto-config/peerOrganizations/policia.zeqium.com/peers/peer1.policia.zeqium.com/msp:/etc/hyperledger/fabric/msp
+      - ./crypto-config/peerOrganizations/policia.zeqium.com/peers/peer1.policia.zeqium.com/tls:/etc/hyperledger/fabric/tls
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "7053:7053"
+      - "7054:7054"
+    depends_on:
+      - couchdb1.policia
+    networks:
+      - zeqium-net
+
+  # ===================================================================
+  # 3. HOTEL MSP - 2 Peers + 2 CouchDB
+  # ===================================================================
+  couchdb0.hotel:
+    container_name: couchdb0.hotel
     image: couchdb:3.3
     environment:
       - COUCHDB_USER=admin
@@ -101,18 +178,22 @@ services:
     networks:
       - zeqium-net
 
+  couchdb1.hotel:
+    container_name: couchdb1.hotel
+    image: couchdb:3.3
+    environment:
+      - COUCHDB_USER=admin
+      - COUCHDB_PASSWORD=adminpw
+    ports:
+      - "7985:5984"
+    networks:
+      - zeqium-net
+
   peer0.hotel.zeqium.com:
     container_name: peer0.hotel.zeqium.com
     image: hyperledger/fabric-peer:2.5
     environment:
-      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
-      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=zeqium-net
-      - FABRIC_LOGGING_SPEC=INFO
-      - CORE_PEER_TLS_ENABLED=true
-      - CORE_PEER_PROFILE_ENABLED=false
-      - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/fabric/tls/server.crt
-      - CORE_PEER_TLS_KEY_FILE=/etc/hyperledger/fabric/tls/server.key
-      - CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/fabric/tls/ca.crt
+      - CORE_VM_ENDPOINT=unix:///var/run/docker.sock
       - CORE_PEER_ID=peer0.hotel.zeqium.com
       - CORE_PEER_ADDRESS=peer0.hotel.zeqium.com:9051
       - CORE_PEER_LISTENADDRESS=0.0.0.0:9051
@@ -122,32 +203,62 @@ services:
       - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.hotel.zeqium.com:9051
       - CORE_PEER_LOCALMSPID=HotelMSP
       - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
-      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb_hotel:5984
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb0.hotel:5984
       - CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME=admin
       - CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD=adminpw
+      - CORE_PEER_TLS_ENABLED=true
     volumes:
-      - /var/run/docker.sock:/host/var/run/docker.sock
       - ./crypto-config/peerOrganizations/hotel.zeqium.com/peers/peer0.hotel.zeqium.com/msp:/etc/hyperledger/fabric/msp
       - ./crypto-config/peerOrganizations/hotel.zeqium.com/peers/peer0.hotel.zeqium.com/tls:/etc/hyperledger/fabric/tls
+      - /var/run/docker.sock:/var/run/docker.sock
     ports:
       - "9051:9051"
+      - "9052:9052"
     depends_on:
-      - couchdb_hotel
+      - couchdb0.hotel
     networks:
       - zeqium-net
 
-  # -----------------------------------------------------------------
-  # 4. CONTENEDOR CLI (Herramienta de administración)
-  # -----------------------------------------------------------------
+  peer1.hotel.zeqium.com:
+    container_name: peer1.hotel.zeqium.com
+    image: hyperledger/fabric-peer:2.5
+    environment:
+      - CORE_VM_ENDPOINT=unix:///var/run/docker.sock
+      - CORE_PEER_ID=peer1.hotel.zeqium.com
+      - CORE_PEER_ADDRESS=peer1.hotel.zeqium.com:9053
+      - CORE_PEER_LISTENADDRESS=0.0.0.0:9053
+      - CORE_PEER_CHAINCODEADDRESS=peer1.hotel.zeqium.com:9054
+      - CORE_PEER_CHAINCODELISTENADDRESS=0.0.0.0:9054
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer0.hotel.zeqium.com:9051
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer1.hotel.zeqium.com:9053
+      - CORE_PEER_LOCALMSPID=HotelMSP
+      - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb1.hotel:5984
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME=admin
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD=adminpw
+      - CORE_PEER_TLS_ENABLED=true
+    volumes:
+      - ./crypto-config/peerOrganizations/hotel.zeqium.com/peers/peer1.hotel.zeqium.com/msp:/etc/hyperledger/fabric/msp
+      - ./crypto-config/peerOrganizations/hotel.zeqium.com/peers/peer1.hotel.zeqium.com/tls:/etc/hyperledger/fabric/tls
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "9053:9053"
+      - "9054:9054"
+    depends_on:
+      - couchdb1.hotel
+    networks:
+      - zeqium-net
+
+  # ===================================================================
+  # 4. CLI (herramienta de administración)
+  # ===================================================================
   cli:
     container_name: cli
     image: hyperledger/fabric-tools:2.5
     tty: true
     stdin_open: true
     environment:
-      - GOPATH=/opt/gopath
-      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
-      - FABRIC_LOGGING_SPEC=INFO
+      - CORE_VM_ENDPOINT=unix:///var/run/docker.sock
       - CORE_PEER_ID=cli
       - CORE_PEER_ADDRESS=peer0.policia.zeqium.com:7051
       - CORE_PEER_LOCALMSPID=PoliciaMSP
@@ -159,12 +270,12 @@ services:
     working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
     command: /bin/bash
     volumes:
-      - /var/run/docker.sock:/host/var/run/docker.sock
-      - ./../chaincode/:/opt/gopath/src/github.com/chaincode
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./../chaincode:/opt/gopath/src/github.com/chaincode
       - ./crypto-config:/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/
       - ./channel-artifacts:/opt/gopath/src/github.com/hyperledger/fabric/peer/channel-artifacts
     depends_on:
-      - orderer.zeqium.com
+      - orderer0.zeqium.com
       - peer0.policia.zeqium.com
       - peer0.hotel.zeqium.com
     networks:

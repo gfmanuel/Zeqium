@@ -1,11 +1,11 @@
 const { Pool } = require('pg');
 
 const pool = new Pool({
-    user: 'zeqium',
-    host: 'localhost',
-    database: 'police_db',
-    password: 'admin',
-    port: 5433, // ¡Puerto exclusivo para la BD de la policía!
+    user: process.env.DB_USER || 'zeqium',
+    host: process.env.DB_HOST || 'localhost',
+    database: process.env.DB_NAME || 'police_db',
+    password: process.env.DB_PASSWORD || 'admin',
+    port: process.env.DB_PORT || 5433,
 });
 
 const initDB = async () => {

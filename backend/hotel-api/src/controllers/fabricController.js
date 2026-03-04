@@ -49,7 +49,7 @@ async function getContract() {
     await gateway.connect(ccp, {
         wallet,
         identity: 'Admin',
-        discovery: { enabled: false, asLocalhost: true },
+        discovery: { enabled: true, asLocalhost: false },
     });
 
     const network = await gateway.getNetwork('zeqium-channel');

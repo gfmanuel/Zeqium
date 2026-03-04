@@ -1,179 +1,229 @@
+require('dotenv').config();
 const express = require('express');
-const { createServer } = require('http'); // Importante para Socket.io
-const { Server } = require('socket.io');   // Importante para Socket.io
+const { createServer } = require('http');
+const { Server } = require('socket.io');
 const crypto = require('crypto');
 global.crypto = crypto;
+const fs = require('fs');
+const path = require('path');
+const cron = require('node-cron');
 
 const { evaluateTransaction, submitTransaction } = require('./controllers/fabricController');
 const verifierService = require('./services/verifierService');
 const { pool, initDB } = require('./config/db');
-const cron = require('node-cron');
+
+const jwt = require('jsonwebtoken');
+const { authMiddleware, JWT_SECRET } = require('../../shared/src/utils/authMiddleware');
+const { ROLES } = require('../../shared/src/constants');
+const { saveNonce, verifyAndBurnNonce } = require('../../shared/src/utils/nonceManager');
+const { decryptJWE } = require('../../shared/src/utils/cryptoUtils');
 
 const app = express();
-const httpServer = createServer(app); // Creamos el servidor HTTP
-const io = new Server(httpServer, {
-    cors: { origin: "*" } // Permitimos conexiones desde el futuro frontend
-});
+const httpServer = createServer(app);
+const io = new Server(httpServer, { cors: { origin: "*" } });
+const PORT = process.env.PORT || 3001;
 
-const PORT = 3001;
-const nonceCache = new Set();
+// --- INICIALIZACIÓN DE IDENTIDAD ---
+let HOTEL_PRIVATE_KEY;
+try {
+    if (!process.env.HOTEL_PRIVATE_KEY_JWK) throw new Error("Falta la clave privada en el .env");
+    HOTEL_PRIVATE_KEY = JSON.parse(process.env.HOTEL_PRIVATE_KEY_JWK);
+    console.log(`🔐 Identidad del hotel cargada de forma segura: ${process.env.HOTEL_DID}`);
+} catch (err) {
+    console.error("❌ Error: Verifica tu archivo .env. " + err.message);
+    process.exit(1);
+}
 
 app.use(express.json());
 
-// --- EVENTOS DE SOCKET.IO ---
 io.on('connection', (socket) => {
-    console.log('📱 Un cliente (frontend) se ha conectado al WebSocket');
-
-    socket.on('disconnect', () => {
-        console.log('📱 Cliente desconectado');
-    });
+    console.log('📱 Cliente WebSocket conectado');
+    socket.on('disconnect', () => console.log('📱 Cliente WebSocket desconectado'));
 });
 
-// --- API DEL HOTEL (Verificador) ---
-
-/**
- * Genera un nonce aleatorio (challenge) para el flujo SSI
- * y lo guarda en caché por 60 segundos para evitar Replay Attacks.
- */
-app.get('/api/hotel/auth-request', (req, res) => {
-    const nonce = crypto.randomBytes(16).toString('hex');
-    nonceCache.add(nonce);
-
-    // El QR/Nonce caduca en 1 minuto
-    setTimeout(() => nonceCache.delete(nonce), 60000);
-
-    res.json({
-        success: true,
-        nonce: nonce,
-        message: "Escanea este QR para acceder"
-    });
+// ==========================================
+// 1. AUTENTICACIÓN
+// ==========================================
+app.post('/api/auth/login', (req, res) => {
+    const { user, pass } = req.body;
+    if (user === process.env.HOTEL_ADMIN_USER && pass === process.env.HOTEL_ADMIN_PASS) {
+        const token = jwt.sign(
+            { id: 2, user: process.env.HOTEL_ADMIN_USER, role: ROLES.HOTEL_RECEPTIONIST },
+            JWT_SECRET, { expiresIn: '4h' }
+        );
+        return res.json({ success: true, token });
+    }
+    res.status(401).json({ success: false, message: 'Credenciales de hotel incorrectas' });
 });
 
-/**
- * Proceso de Check-in (Capa 4 + Capa 5)
- */
+// ==========================================
+// 2. FLUJO DE VERIFICACIÓN (SSI / DIDComm)
+// ==========================================
+
+app.get('/api/hotel/auth-request', async (req, res) => {
+    try {
+        const nonce = crypto.randomBytes(16).toString('hex');
+        await saveNonce(nonce, 60); // Caducidad de 60s [cite: 232]
+
+        const now = Math.floor(Date.now() / 1000);
+
+        // Objeto oficial DIF Presentation Exchange v2.0 [cite: 60-87]
+        const presentationRequest = {
+            type: "PresentationRequest",
+            id: `req_${crypto.randomBytes(4).toString('hex')}`,
+            from: process.env.HOTEL_DID,
+            created_time: now,
+            expires_time: now + 60,
+            body: {
+                goal_code: "hotel_checkin",
+                nonce: nonce,
+                requirements: [{
+                    schema: "schema:zeqium:gov:dni:v1",
+                    constraints: {
+                        fields: [
+                            { path: ["$.national_id"], filter: { type: "string" } },
+                            { path: ["$.birth_date"], filter: { type: "string", maximum: "2008-03-03" } }
+                        ]
+                    }
+                }]
+            }
+        };
+
+        res.json({ success: true, request: presentationRequest });
+    } catch (err) {
+        res.status(500).json({ error: "Error 503: Servicio temporalmente no disponible" });
+    }
+});
+
 app.post('/api/hotel/checkin', async (req, res) => {
-    let { sdJwt, nonce, isBase64 = false } = req.body;
+    const { jwe, nonce } = req.body;
     const timestamp = new Date().toISOString();
 
     try {
-        // 1. Seguridad: Validación del Nonce (Anti-Replay)
-        if (!nonce || !nonceCache.has(nonce)) {
-            throw new Error('Nonce inválido, caducado o ya utilizado');
-        }
-        nonceCache.delete(nonce);
+        // A. Anti-Replay [cite: 247, 324]
+        const isValidNonce = await verifyAndBurnNonce(nonce);
+        if (!isValidNonce) throw new Error('Nonce inválido, caducado o ya utilizado');
 
-        if (isBase64) {
-            sdJwt = Buffer.from(sdJwt, 'base64').toString('utf8');
-        }
+        // B. Privacidad: Descifrar JWE [cite: 246]
+        const decryptedPayload = await decryptJWE(jwe, HOTEL_PRIVATE_KEY);
+        const sdJwt = decryptedPayload.sdJwt;
 
-        // 2. Criptografía: Validar firma SD-JWT y extraer claims
+        // C. Criptografía: Validar firma SD-JWT [cite: 262]
         const payload = await verifierService.verifyPresentation(sdJwt);
         const credentialHash = crypto.createHash('sha256').update(sdJwt).digest('hex');
 
-        // 3. Blockchain: Consultar estado de revocación en Zeqium
-        const statusResult = await evaluateTransaction('VerifyCredentialStatus', credentialHash);
-        if (statusResult?.status !== 'ACTIVE') {
-            throw new Error('Credencial no activa o revocada en la red Zeqium');
-        }
+        // --- VALIDACIÓN DE CONSTRAINTS (DIF PE) --- [cite: 29, 332]
+        const requiredFields = ['national_id', 'birth_date', 'given_name', 'family_name'];
+        const missingFields = requiredFields.filter(field => !payload[field]);
 
-        // 4. Lógica de Negocio: Evitar check-in si ya tiene estancia activa
-        const checkActiveQuery = `
-            SELECT id, habitacion FROM stays 
-            WHERE did_huesped = $1 AND estado = 'Checked-in'
-        `;
-        const activeStay = await pool.query(checkActiveQuery, [payload.sub]);
-
-        if (activeStay.rowCount > 0) {
+        if (missingFields.length > 0) {
             return res.status(400).json({
                 success: false,
-                error: `El usuario ya tiene una estancia activa en la habitación ${activeStay.rows[0].habitacion}.`
+                error: `Divulgación insuficiente. Faltan campos requeridos: ${missingFields.join(', ')}`
             });
         }
 
-        // 5. Blockchain: Registrar actividad de verificación (Audit Log)
+        // Validación de regla: Mayor de edad (2008-03-03) [cite: 85-87]
+        const birthDate = new Date(payload.birth_date);
+        const limitDate = new Date('2008-03-03');
+        if (birthDate > limitDate) {
+            return res.status(403).json({
+                success: false,
+                error: "Acceso denegado: El usuario no cumple el requisito de mayoría de edad."
+            });
+        }
+
+        // D. Gobernanza: Consultar estado en Zeqium [cite: 270, 344]
+        const statusResult = await evaluateTransaction('VerifyCredentialStatus', credentialHash);
+        if (statusResult?.status !== 'ACTIVE') throw new Error('Credencial no activa o revocada');
+
+        // E. Negocio: Evitar múltiples check-ins [cite: 273]
+        const activeStay = await pool.query(`SELECT id FROM stays WHERE did_huesped = $1 AND estado = 'Checked-in'`, [payload.sub]);
+        if (activeStay.rowCount > 0) return res.status(400).json({ success: false, error: 'El usuario ya tiene una estancia activa.' });
+
+        // F. Trazabilidad: Registrar auditoría en Fabric [cite: 378]
         const auditId = 'LOG_' + crypto.randomBytes(4).toString('hex');
-        await submitTransaction('LogVerificationActivity', auditId, timestamp, 'did:zeqium:hotel_madrid_01', credentialHash);
+        await submitTransaction('LogVerificationActivity', auditId, timestamp, process.env.HOTEL_DID, credentialHash);
 
-        // 6. DB Local: Asignar habitación y registrar huésped
-        const numeroHabitacion = Math.floor(Math.random() * 100) + 100;
-        const insertQuery = `
-            INSERT INTO stays (did_huesped, nombre, apellidos, habitacion, credential_hash)
-            VALUES ($1, $2, $3, $4, $5)
-            RETURNING id, habitacion;
-        `;
+        // G. Persistencia [cite: 273]
+        const habitacionAsignada = `Hab-${Math.floor(Math.random() * 100) + 100}`;
+        await pool.query(
+            `INSERT INTO stays (did_huesped, nombre, apellidos, habitacion, credential_hash) VALUES ($1, $2, $3, $4, $5)`,
+            [payload.sub, payload.given_name, payload.family_name, habitacionAsignada, credentialHash]
+        );
 
-        const dbResult = await pool.query(insertQuery, [
-            payload.sub,
-            payload.given_name,
-            payload.family_name,
-            `Hab-${numeroHabitacion}`,
-            credentialHash
-        ]);
-
-        const habitacionAsignada = dbResult.rows[0].habitacion;
-
-        // --- NUEVO: 7. Emitir evento en tiempo real vía WebSocket ---
+        // H. Notificación [cite: 279, 314]
         io.emit('new-checkin', {
-            nombre: payload.given_name,
-            apellidos: payload.family_name,
-            habitacion: habitacionAsignada,
-            hora: new Date().toLocaleTimeString(),
-            auditId: auditId
+            nombre: payload.given_name, apellidos: payload.family_name, habitacion: habitacionAsignada, hora: new Date().toLocaleTimeString(), auditId
         });
 
-        // 8. Respuesta final al móvil
-        res.json({
-            success: true,
-            message: "¡DNI verificado! Bienvenido al hotel.",
-            user_checked_in: {
-                nombre: payload.given_name,
-                apellidos: payload.family_name,
-                nacionalidad: payload.nacionalidad,
-                habitacion: habitacionAsignada
-            },
-            verification_time: new Date().toISOString(),
-            auditId: auditId,
-            credentialHash: credentialHash
-        });
-
+        res.json({ success: true, message: "¡DNI verificado!", user_checked_in: { nombre: payload.given_name, habitacion: habitacionAsignada }, auditId });
     } catch (err) {
         console.error("Fallo en verificación:", err.message);
-        res.status(401).json({
-            error: "Fallo en la verificación: " + (err.message || 'Error desconocido')
-        });
+        res.status(401).json({ error: "Fallo en la verificación: " + err.message });
     }
 });
 
-// --- TAREA PROGRAMADA (Cron Job) ---
+// ==========================================
+// 3. GESTIÓN OPERATIVA
+// ==========================================
+app.get('/api/hotel/guests/active', authMiddleware(ROLES.HOTEL_RECEPTIONIST), async (req, res) => {
+    try {
+        const result = await pool.query("SELECT id, nombre, apellidos, habitacion, fecha_entrada, estado FROM stays WHERE estado = 'Checked-in' ORDER BY fecha_entrada DESC");
+        res.json({ success: true, guests: result.rows });
+    } catch (err) {
+        res.status(500).json({ error: 'Error al consultar huéspedes: ' + err.message });
+    }
+});
+
+// ==========================================
+// 4. AUDITORÍA Y TRAZABILIDAD
+// ==========================================
+app.get('/api/hotel/audit/logs', authMiddleware(ROLES.HOTEL_RECEPTIONIST), async (req, res) => {
+    try {
+        const result = await pool.query("SELECT * FROM stays ORDER BY fecha_entrada DESC");
+        res.json({ success: true, logs: result.rows });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/hotel/audit/ledger', authMiddleware(ROLES.HOTEL_RECEPTIONIST), async (req, res) => {
+    try {
+        const resultBuffer = await evaluateTransaction('GetAuditLogs', process.env.HOTEL_DID);
+        res.json({ success: true, ledger: JSON.parse(resultBuffer.toString()) });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/hotel/audit/export', authMiddleware(ROLES.HOTEL_RECEPTIONIST), async (req, res) => {
+    try {
+        const result = await pool.query("SELECT did_huesped, nombre, apellidos, habitacion, fecha_entrada, fecha_salida_prevista, estado, credential_hash FROM stays ORDER BY fecha_entrada DESC");
+        const fields = ['DID Huesped', 'Nombre', 'Apellidos', 'Habitacion', 'Entrada', 'Salida Prevista', 'Estado', 'Hash Verificado'];
+        const csvRows = result.rows.map(row =>
+            `"${row.did_huesped}","${row.nombre}","${row.apellidos}","${row.habitacion}","${row.fecha_entrada}","${row.fecha_salida_prevista || 'N/A'}","${row.estado}","${row.credential_hash}"`
+        );
+
+        res.header('Content-Type', 'text/csv');
+        res.attachment('zeqium_hotel_stays.csv');
+        return res.send([fields.join(','), ...csvRows].join('\n'));
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- CRON JOBS ---
 cron.schedule('* * * * *', async () => {
     try {
-        const updateQuery = `
-            UPDATE stays 
-            SET estado = 'Completed' 
-            WHERE estado = 'Checked-in' 
-            AND fecha_entrada < NOW() - INTERVAL '1 minute'
-            RETURNING id, nombre;
-        `;
-
-        const result = await pool.query(updateQuery);
-
-        if (result.rowCount > 0) {
-            result.rows.forEach(row => {
-                console.log(`✅ [Cron Job] Check-out automático realizado para: ${row.nombre} (ID: ${row.id})`);
-            });
-        }
+        const query = `UPDATE stays SET estado = 'Completed' WHERE estado = 'Checked-in' AND fecha_entrada < NOW() - INTERVAL '1 minute' RETURNING id, nombre;`;
+        const result = await pool.query(query);
+        result.rows.forEach(row => console.log(`✅ [Cron Job] Check-out realizado: ${row.nombre}`));
     } catch (err) {
-        console.error('❌ [Cron Job] Error al procesar check-outs:', err.message);
+        console.error('❌ [Cron Job] Error:', err.message);
     }
 });
 
-// --- ARRANQUE DEL SERVIDOR ---
 initDB().then(() => {
-    // IMPORTANTE: Escuchamos con httpServer en lugar de app
-    httpServer.listen(PORT, () => {
-        console.log(`Hotel Server (Verifier) with WebSockets listening on port ${PORT}`);
-    });
-}).catch(err => {
-    console.error("Fallo crítico al arrancar la BD:", err);
-});
+    httpServer.listen(PORT, () => console.log(`🏨 Hotel Server (Verifier) running on port ${PORT}`));
+}).catch(err => console.error("Fallo crítico:", err));

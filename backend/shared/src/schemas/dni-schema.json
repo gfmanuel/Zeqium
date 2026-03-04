@@ -1,0 +1,24 @@
+{
+    "id": "schema:zeqium:gov:dni:v1",
+    "name": "Documento Nacional de Identidad",
+    "issuer": "did:zeqium:policia",
+    "attributes": {
+        "given_name": {
+            "type": "string",
+            "description": "Nombre de pila"
+        },
+        "family_name": {
+            "type": "string"
+        },
+        "birth_date": {
+            "type": "string",
+            "format": "date"
+        },
+        "national_id": {
+            "type": "string"
+        },
+        "nacionalidad": {
+            "type": "string"
+        }
+    }
+}
