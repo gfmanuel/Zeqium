@@ -80,8 +80,45 @@ app.get('/api/did/:id', async (req, res) => {
 
 app.post('/api/did', async (req, res) => {
   try {
-    await submitTransaction('RegisterDID', req.body.id, req.body.pubKey, req.body.controller, new Date().toISOString());
-    res.json({ success: true, id: req.body.id });
+    const issuerDid = req.body.id;
+    let publicKeyJwk = req.body.pubKey;
+
+    if (!issuerDid || !publicKeyJwk) {
+      return res.status(400).json({ error: 'id y pubKey son obligatorios' });
+    }
+
+    if (typeof publicKeyJwk === 'string') {
+      try {
+        publicKeyJwk = JSON.parse(publicKeyJwk);
+      } catch (e) {
+        return res.status(400).json({ error: 'pubKey debe ser un JWK válido (objeto o JSON stringificable)' });
+      }
+    }
+
+    const controller = req.body.controller || issuerDid;
+
+    const didDocument = {
+      id: issuerDid,
+      controller,
+      verificationMethod: [
+        {
+          id: `${issuerDid}#key-1`,
+          type: 'JsonWebKey2020',
+          controller,
+          publicKeyJwk
+        }
+      ]
+    };
+
+    await submitTransaction(
+      'RegisterDID',
+      issuerDid,
+      JSON.stringify(didDocument),
+      controller,
+      new Date().toISOString()
+    );
+
+    res.json({ success: true, id: issuerDid });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
