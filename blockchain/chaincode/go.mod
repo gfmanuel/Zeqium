@@ -1,4 +1,4 @@
-module github.com/gfmanuel/Zeqium/blockchain/chaincode
+module zeqium
 
 go 1.21.6
 

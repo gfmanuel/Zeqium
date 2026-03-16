@@ -12,7 +12,8 @@ type SmartContract struct {
 	contractapi.Contract
 }
 
-// Estructuras de datos (CouchDB)
+// --- ESTRUCTURAS DE DATOS ---
+
 type DID struct {
 	AssetType          string `json:"assetType"`
 	ID                 string `json:"id"`
@@ -56,7 +57,8 @@ type AuditLog struct {
 	Resultado   string `json:"resultado"`
 }
 
-// A. GESTIÓN DE IDENTIDADES (DIDs)
+// --- A. GESTIÓN DE IDENTIDADES ---
+
 func (s *SmartContract) RegisterDID(ctx contractapi.TransactionContextInterface, id string, pubKey string, controller string, timestamp string) error {
 	did := DID{
 		AssetType:          "DID",
@@ -76,21 +78,12 @@ func (s *SmartContract) ResolveDID(ctx contractapi.TransactionContextInterface, 
 		return nil, fmt.Errorf("DID no encontrado")
 	}
 	var did DID
-	json.Unmarshal(didBytes, &did)
-	return &did, nil
+	err = json.Unmarshal(didBytes, &did)
+	return &did, err
 }
 
-func (s *SmartContract) DeactivateDID(ctx contractapi.TransactionContextInterface, id string) error {
-	did, err := s.ResolveDID(ctx, id)
-	if err != nil {
-		return err
-	}
-	did.Status = "INACTIVE"
-	didBytes, _ := json.Marshal(did)
-	return ctx.GetStub().PutState(id, didBytes)
-}
+// --- B. ESTADO Y REVOCACIÓN ---
 
-// B. REGISTRO DE ESTADO Y REVOCACIÓN
 func (s *SmartContract) PublishCredentialStatus(ctx contractapi.TransactionContextInterface, hash string, issuer string, timestamp string) error {
 	status := CredentialStatus{
 		AssetType: "CredentialStatus",
@@ -117,10 +110,7 @@ func (s *SmartContract) RevokeCredential(ctx contractapi.TransactionContextInter
 	
 	updatedBytes, _ := json.Marshal(status)
 	err = ctx.GetStub().PutState(hash, updatedBytes)
-	
-	// Emitir evento de revocacion
 	ctx.GetStub().SetEvent("CredentialRevoked", updatedBytes)
-	
 	return err
 }
 
@@ -134,10 +124,11 @@ func (s *SmartContract) VerifyCredentialStatus(ctx contractapi.TransactionContex
 	return &status, nil
 }
 
-// C. GESTIÓN DE ESQUEMAS
+// --- C. ESQUEMAS ---
+
 func (s *SmartContract) RegisterSchema(ctx contractapi.TransactionContextInterface, schemaID string, name string, version string, attributesJSON string, issuerDID string) error {
 	var attributes []string
-	json.Unmarshal([]byte(attributesJSON), &attributes)
+	_ = json.Unmarshal([]byte(attributesJSON), &attributes)
 
 	schema := Schema{
 		AssetType:  "Schema",
@@ -161,29 +152,8 @@ func (s *SmartContract) GetSchema(ctx contractapi.TransactionContextInterface, s
 	return &schema, nil
 }
 
-func (s *SmartContract) CreateCredentialDefinition(ctx contractapi.TransactionContextInterface, credDefID string, schemaID string, issuerDID string, pubKeys string) error {
-	credDef := CredentialDefinition{
-		AssetType:  "CredentialDefinition",
-		ID:         credDefID,
-		SchemaID:   schemaID,
-		IssuerDID:  issuerDID,
-		PublicKeys: pubKeys,
-	}
-	credBytes, _ := json.Marshal(credDef)
-	return ctx.GetStub().PutState(credDefID, credBytes)
-}
+// --- D. AUDITORÍA ---
 
-func (s *SmartContract) GetCredentialDefinition(ctx contractapi.TransactionContextInterface, credDefID string) (*CredentialDefinition, error) {
-	credBytes, err := ctx.GetStub().GetState(credDefID)
-	if err != nil || credBytes == nil {
-		return nil, fmt.Errorf("definicion no encontrada")
-	}
-	var credDef CredentialDefinition
-	json.Unmarshal(credBytes, &credDef)
-	return &credDef, nil
-}
-
-// D. AUDITORÍA Y TRAZABILIDAD
 func (s *SmartContract) LogVerificationActivity(ctx contractapi.TransactionContextInterface, logID string, timestamp string, verifierDID string, proofHash string) error {
 	auditLog := AuditLog{
 		AssetType:   "AuditLog",
@@ -194,10 +164,7 @@ func (s *SmartContract) LogVerificationActivity(ctx contractapi.TransactionConte
 	}
 	logBytes, _ := json.Marshal(auditLog)
 	err := ctx.GetStub().PutState(logID, logBytes)
-	
-	// Emitir evento de checkin
 	ctx.GetStub().SetEvent("NewCheckin", logBytes)
-	
 	return err
 }
 

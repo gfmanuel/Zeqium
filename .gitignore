@@ -22,25 +22,25 @@ credentials.json
 *.cer
 *.csr
 *.p12
-**/crypto-config/                  # ¡Imprescindible! Todas las claves Fabric (MSP, TLS) están aquí
-**/channel-artifacts/              # Bloques, tx, genesis — generados
-**/wallet/                         # Wallets locales de Fabric
+**/crypto-config/                  
+**/channel-artifacts/              
+**/wallet/                         
 
 # --- 2. BLOCKCHAIN / FABRIC (GENERADOS Y LOCALES) ---
 **/*.block
 **/*.tx
 genesis.block
-*.tar.gz                           # Paquetes chaincode (zeqium.tar.gz)
-vendor/                            # Go dependencies vendidas
-go.sum                             # Varía por máquina, regenera con go mod tidy
-**/bin/                            # cryptogen, configtxgen, etc.
+*.tar.gz                           
+vendor/                            
+go.sum                             
+**/bin/                            
 **/builders/
 **/fabric-samples/
 **/build/
 
 # --- 3. BACKEND & SHARED (NODE.JS) ---
 **/node_modules/
-**/package-lock.json               # Genera ruido y conflictos; regenera con npm i
+**/package-lock.json               
 **/npm-debug.log*
 **/yarn-error.log
 dist/
@@ -79,10 +79,10 @@ test-*.js
 **/tests/local/
 
 # --- 7. ARCHIVOS QUE APARECEN EN TU GIT STATUS Y NO DEBEN SUBIRSE ---
-../docker-compose.yaml             # El antiguo con hardcodes (ya borrado)
-../package-lock.json               # Raíz del repo (probablemente generado)
-../blockchain/network/zeqium.tar.gz # Paquete chaincode generado
-../blockchain/chaincode/chaincode  # Posible duplicado o carpeta temporal
-../blockchain/chaincode/zeqium     # Si es la fuente del chaincode, mejor no versionarla entera (usa go.mod y go.sum)
-../blockchain/network/crypto-config/ # ¡Imprescindible! Claves Fabric
-../blockchain/network/connection-*.json # Si tienen rutas absolutas locales (/home/mgf00042/...), mejor regenerarlos o usar variables
+../docker-compose.yaml              
+../package-lock.json               
+../blockchain/network/zeqium.tar.gz 
+../blockchain/chaincode/chaincode  
+../blockchain/chaincode/zeqium     
+../blockchain/network/crypto-config/ 
+../blockchain/network/connection-*.json 

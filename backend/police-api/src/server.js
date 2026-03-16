@@ -59,8 +59,8 @@ app.post('/api/auth/login', (req, res) => {
 // Consulta pública de estado (Polling de la App Móvil)
 app.get('/api/status/:hash', async (req, res) => {
   try {
-    const resultBuffer = await evaluateTransaction('VerifyCredentialStatus', req.params.hash);
-    res.json({ success: true, hash: req.params.hash, status: JSON.parse(resultBuffer.toString()).status });
+    const result = await evaluateTransaction('VerifyCredentialStatus', req.params.hash);
+    res.json({ success: true, hash: req.params.hash, status: result.status });
   } catch (err) {
     res.status(404).json({ success: false, error: "Credencial no encontrada en Zeqium" });
   }
@@ -97,9 +97,24 @@ app.get('/api/schema/:id', async (req, res) => {
 });
 
 app.post('/api/issuer/schemas', authMiddleware(ROLES.POLICE_ADMIN), async (req, res) => {
-  const { schemaID, schemaJSON } = req.body;
+  const { schemaID, name, version = "1.0", attributes } = req.body;
+
+  // Validación básica antes de enviar a blockchain
+  if (!Array.isArray(attributes) || attributes.some(a => typeof a !== 'string')) {
+    return res.status(400).json({
+      error: "attributes debe ser un array de strings (nombres de campos)"
+    });
+  }
+
   try {
-    await submitTransaction('RegisterSchema', schemaID, schemaJSON.name, schemaJSON.version || "1.0", JSON.stringify(schemaJSON.attributes), ISSUER_DID);
+    await submitTransaction(
+      'RegisterSchema',
+      schemaID,
+      name,
+      version,
+      JSON.stringify(attributes),  // ← se guarda como ["given_name", "birth_date", ...]
+      ISSUER_DID
+    );
     res.json({ success: true, message: `Esquema ${schemaID} registrado en Zeqium` });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -147,32 +162,101 @@ app.post('/api/issuer/credential', authMiddleware(ROLES.POLICE_ADMIN), async (re
 
   try {
     // A. Anti-Replay
-    if (nonce && !(await verifyAndBurnNonce(nonce))) throw new Error("Nonce inválido o caducado");
-
-    // B. Validación Dinámica de Esquemas (Blockchain -> Ajv)
-    const schemaLedger = JSON.parse((await evaluateTransaction('GetSchema', schemaID)).toString());
-    const attributes = JSON.parse(schemaLedger.attributes);
-
-    const schemaForAjv = { type: "object", properties: {}, required: [] };
-    if (Array.isArray(attributes)) {
-      attributes.forEach(attr => { schemaForAjv.properties[attr] = { type: "string" }; schemaForAjv.required.push(attr); });
-    } else {
-      schemaForAjv.properties = attributes; schemaForAjv.required = Object.keys(attributes);
+    if (nonce && !(await verifyAndBurnNonce(nonce))) {
+      throw new Error("Nonce inválido o caducado");
     }
 
+    // B. Validación Dinámica de Esquemas (Blockchain -> Ajv)
+    const resultFromLedger = await evaluateTransaction('GetSchema', schemaID);
+    if (!resultFromLedger) {
+      return res.status(404).json({ error: "El esquema no existe en Zeqium" });
+    }
+
+    // Log para debug (muy útil ahora)
+    console.log('[DEBUG] Schema recibido del ledger:', JSON.stringify(resultFromLedger, null, 2));
+
+    let attributes = resultFromLedger.attributes || [];
+
+    // Normalización robusta
+    if (typeof attributes === 'string') {
+      try {
+        attributes = JSON.parse(attributes);
+      } catch (e) {
+        console.error('Error parseando attributes string:', e);
+        attributes = [];
+      }
+    }
+
+    // Solo aceptamos array de strings (por chaincode actual)
+    if (!Array.isArray(attributes)) {
+      return res.status(500).json({
+        error: "Formato de atributos inválido en ledger (se esperaba array)"
+      });
+    }
+
+    // Construimos schemaForAjv de forma muy explícita
+    const schemaForAjv = {
+      type: "object",
+      properties: {},
+      required: attributes,          // todos obligatorios por defecto
+      additionalProperties: false    // ← evita campos extra (más seguro)
+    };
+
+    // Asignamos tipos (por ahora todo string, pero puedes mejorar por campo)
+    attributes.forEach(attr => {
+      let fieldSchema = { type: "string" };
+
+      // Reglas especiales por nombre de campo (extensible)
+      if (attr === "birth_date") {
+        fieldSchema.format = "date";           // Ajv con addFormats lo valida
+      }
+      if (attr === "national_id") {
+        fieldSchema.pattern = "^[0-9]{8}[A-Z]$"; // ejemplo DNI español
+      }
+
+      schemaForAjv.properties[attr] = fieldSchema;
+    });
+
     const validate = ajv.compile(schemaForAjv);
-    if (!validate(userData)) return res.status(400).json({ error: "Estructura de datos inválida según Fabric", details: validate.errors });
+
+    // Log del esquema generado (debug)
+    console.log('[DEBUG] schemaForAjv generado:', JSON.stringify(schemaForAjv, null, 2));
+
+    if (!validate(userData)) {
+      return res.status(400).json({
+        error: "Datos inválidos según esquema",
+        details: validate.errors
+      });
+    }
 
     // C. Criptografía: Generar SD-JWT
-    const sdJwt = await issuerService.createDNI(userData, holderDID);
+    const mappedData = {
+      nombre: userData.given_name,
+      apellidos: userData.family_name,
+      fecha_nacimiento: userData.birth_date,
+      dni: userData.national_id,
+      nacionalidad: userData.nacionalidad
+    };
+
+    const sdJwt = await issuerService.createDNI(mappedData, holderDID);
     const credentialHash = crypto.createHash('sha256').update(sdJwt).digest('hex');
 
     // D. Anclaje y Persistencia
     await submitTransaction('PublishCredentialStatus', credentialHash, ISSUER_DID, timestamp);
-    await pool.query(`INSERT INTO issued_credentials (did_holder, credential_hash, estado) VALUES ($1, $2, $3)`, [holderDID, credentialHash, 'ACTIVE']);
+    await pool.query(
+      `INSERT INTO issued_credentials (did_holder, credential_hash, estado) VALUES ($1, $2, $3)`,
+      [holderDID, credentialHash, 'ACTIVE']
+    );
 
-    res.json({ success: true, credential: sdJwt, statusHash: credentialHash, message: "DNI emitido exitosamente" });
+    res.json({
+      success: true,
+      credential: sdJwt,
+      statusHash: credentialHash,
+      message: "DNI emitido exitosamente"
+    });
+
   } catch (err) {
+    console.error("Error en emisión:", err);
     res.status(500).json({ error: err.message });
   }
 });

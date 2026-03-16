@@ -1,89 +1,88 @@
 #!/bin/bash
-export PATH=${PWD}/../bin:$PATH
+# ================================================
+# ZEQIUM - START BLOCKCHAIN HA (Ejecución dentro de CLI)
+# ================================================
+set -e
 
-# Script de inicialización de Zeqium con TLS
+GREEN='\033[0;32m'
+NC='\033[0m'
 
+echo -e "${GREEN}⚙️ Enviando comandos de despliegue al contenedor CLI...${NC}"
+
+# Ejecutamos todo el bloque dentro del contenedor 'cli'
+docker exec cli bash -c '
+set -e
 CHANNEL_NAME="zeqium-channel"
 CC_NAME="zeqium"
-CC_SRC_PATH="../chaincode"
 CC_VERSION="1.0"
 CC_SEQUENCE="1"
+CC_LABEL="${CC_NAME}_${CC_VERSION}"
+ORDERER_CA="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/ordererOrganizations/zeqium.com/orderers/orderer0.zeqium.com/msp/tlscacerts/tlsca.zeqium.com-cert.pem"
 
-export FABRIC_CFG_PATH=${PWD}
-export ORDERER_ADDRESS="orderer.zeqium.com:7050"
-export ORDERER_CA="${PWD}/crypto-config/ordererOrganizations/zeqium.com/orderers/orderer.zeqium.com/msp/tlscacerts/tlsca.zeqium.com-cert.pem"
+echo "=== 1. Creando canal ==="
+export CORE_PEER_LOCALMSPID="PoliciaMSP"
+export CORE_PEER_MSPCONFIGPATH="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/policia.zeqium.com/users/Admin@policia.zeqium.com/msp"
+export CORE_PEER_TLS_ROOTCERT_FILE="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/policia.zeqium.com/peers/peer0.policia.zeqium.com/tls/ca.crt"
+export CORE_PEER_ADDRESS=peer0.policia.zeqium.com:7051
 
-# Policía
-export POLICIA_MSP="PoliciaMSP"
-export POLICIA_MSP_DIR="${PWD}/crypto-config/peerOrganizations/policia.zeqium.com/users/Admin@policia.zeqium.com/msp"
-export POLICIA_ADDRESS="peer0.policia.zeqium.com:7051"
-export POLICIA_TLS_CA="${PWD}/crypto-config/peerOrganizations/policia.zeqium.com/peers/peer0.policia.zeqium.com/tls/ca.crt"
+peer channel create -o orderer0.zeqium.com:7050 --ordererTLSHostnameOverride orderer0.zeqium.com -c $CHANNEL_NAME -f ./channel-artifacts/zeqium-channel.tx --outputBlock ./channel-artifacts/zeqium-channel.block --tls --cafile $ORDERER_CA
 
-# Hotel
-export HOTEL_MSP="HotelMSP"
-export HOTEL_MSP_DIR="${PWD}/crypto-config/peerOrganizations/hotel.zeqium.com/users/Admin@hotel.zeqium.com/msp"
-export HOTEL_ADDRESS="peer0.hotel.zeqium.com:9051"
-export HOTEL_TLS_CA="${PWD}/crypto-config/peerOrganizations/hotel.zeqium.com/peers/peer0.hotel.zeqium.com/tls/ca.crt"
+echo "=== 2. Uniendo nodos de Policia ==="
+peer channel join -b ./channel-artifacts/zeqium-channel.block
 
-echo "=== 1. Generando transacción del canal ==="
-configtxgen -profile ZeqiumChannel -outputCreateChannelTx ./channel-artifacts/${CHANNEL_NAME}.tx -channelID ${CHANNEL_NAME}
+export CORE_PEER_ADDRESS=peer1.policia.zeqium.com:7053
+export CORE_PEER_TLS_ROOTCERT_FILE="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/policia.zeqium.com/peers/peer1.policia.zeqium.com/tls/ca.crt"
+peer channel join -b ./channel-artifacts/zeqium-channel.block
 
-echo "=== 2. Creando el canal ==="
-export CORE_PEER_LOCALMSPID=$POLICIA_MSP
-export CORE_PEER_MSPCONFIGPATH=$POLICIA_MSP_DIR
-export CORE_PEER_ADDRESS=$POLICIA_ADDRESS
-export CORE_PEER_TLS_ENABLED=true
-export CORE_PEER_TLS_ROOTCERT_FILE=$POLICIA_TLS_CA
-peer channel create -o $ORDERER_ADDRESS -c $CHANNEL_NAME -f ./channel-artifacts/${CHANNEL_NAME}.tx --outputBlock ./channel-artifacts/${CHANNEL_NAME}.block --tls --cafile $ORDERER_CA
+echo "=== 3. Uniendo nodos de Hotel ==="
+export CORE_PEER_LOCALMSPID="HotelMSP"
+export CORE_PEER_MSPCONFIGPATH="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/hotel.zeqium.com/users/Admin@hotel.zeqium.com/msp"
 
-echo "=== 3. Uniendo a la Policía al canal ==="
-peer channel join -b ./channel-artifacts/${CHANNEL_NAME}.block
+export CORE_PEER_ADDRESS=peer0.hotel.zeqium.com:9051
+export CORE_PEER_TLS_ROOTCERT_FILE="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/hotel.zeqium.com/peers/peer0.hotel.zeqium.com/tls/ca.crt"
+peer channel join -b ./channel-artifacts/zeqium-channel.block
 
-echo "=== 4. Uniendo al Hotel al canal ==="
-export CORE_PEER_LOCALMSPID=$HOTEL_MSP
-export CORE_PEER_MSPCONFIGPATH=$HOTEL_MSP_DIR
-export CORE_PEER_ADDRESS=$HOTEL_ADDRESS
-export CORE_PEER_TLS_ROOTCERT_FILE=$HOTEL_TLS_CA
-peer channel join -b ./channel-artifacts/${CHANNEL_NAME}.block
+export CORE_PEER_ADDRESS=peer1.hotel.zeqium.com:9053
+export CORE_PEER_TLS_ROOTCERT_FILE="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/hotel.zeqium.com/peers/peer1.hotel.zeqium.com/tls/ca.crt"
+peer channel join -b ./channel-artifacts/zeqium-channel.block
 
-echo "=== 5. Empaquetando Chaincode ==="
-peer lifecycle chaincode package ${CC_NAME}.tar.gz --path ${CC_SRC_PATH} --lang golang --label ${CC_NAME}_${CC_VERSION}
+echo "=== 4. Empaquetando Chaincode ==="
+peer lifecycle chaincode package zeqium.tar.gz --path /opt/gopath/src/github.com/chaincode/ --lang golang --label $CC_LABEL
 
-echo "=== 6. Instalando Chaincode en Policía ==="
-export CORE_PEER_LOCALMSPID=$POLICIA_MSP
-export CORE_PEER_MSPCONFIGPATH=$POLICIA_MSP_DIR
-export CORE_PEER_ADDRESS=$POLICIA_ADDRESS
-export CORE_PEER_TLS_ROOTCERT_FILE=$POLICIA_TLS_CA
-peer lifecycle chaincode install ${CC_NAME}.tar.gz
+echo "=== 5. Instalando Chaincode ==="
+peer lifecycle chaincode install zeqium.tar.gz
 
-echo "=== 7. Instalando Chaincode en Hotel ==="
-export CORE_PEER_LOCALMSPID=$HOTEL_MSP
-export CORE_PEER_MSPCONFIGPATH=$HOTEL_MSP_DIR
-export CORE_PEER_ADDRESS=$HOTEL_ADDRESS
-export CORE_PEER_TLS_ROOTCERT_FILE=$HOTEL_TLS_CA
-peer lifecycle chaincode install ${CC_NAME}.tar.gz
+export CORE_PEER_ADDRESS=peer0.hotel.zeqium.com:9051
+export CORE_PEER_TLS_ROOTCERT_FILE="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/hotel.zeqium.com/peers/peer0.hotel.zeqium.com/tls/ca.crt"
+peer lifecycle chaincode install zeqium.tar.gz
 
-CC_PACKAGE_ID=$(peer lifecycle chaincode queryinstalled | grep ${CC_NAME}_${CC_VERSION} | awk '{print $3}' | sed 's/,//')
+export CORE_PEER_LOCALMSPID="PoliciaMSP"
+export CORE_PEER_MSPCONFIGPATH="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/policia.zeqium.com/users/Admin@policia.zeqium.com/msp"
+export CORE_PEER_ADDRESS=peer0.policia.zeqium.com:7051
+export CORE_PEER_TLS_ROOTCERT_FILE="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/policia.zeqium.com/peers/peer0.policia.zeqium.com/tls/ca.crt"
+peer lifecycle chaincode install zeqium.tar.gz
 
-echo "=== 8. Aprobando Chaincode (Policía) ==="
-export CORE_PEER_LOCALMSPID=$POLICIA_MSP
-export CORE_PEER_MSPCONFIGPATH=$POLICIA_MSP_DIR
-export CORE_PEER_ADDRESS=$POLICIA_ADDRESS
-export CORE_PEER_TLS_ROOTCERT_FILE=$POLICIA_TLS_CA
-peer lifecycle chaincode approveformyorg -o $ORDERER_ADDRESS --channelID $CHANNEL_NAME --name $CC_NAME --version $CC_VERSION --package-id $CC_PACKAGE_ID --sequence $CC_SEQUENCE --tls --cafile $ORDERER_CA
+export CORE_PEER_ADDRESS=peer1.policia.zeqium.com:7053
+export CORE_PEER_TLS_ROOTCERT_FILE="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/policia.zeqium.com/peers/peer1.policia.zeqium.com/tls/ca.crt"
+peer lifecycle chaincode install zeqium.tar.gz
 
-echo "=== 9. Aprobando Chaincode (Hotel) ==="
-export CORE_PEER_LOCALMSPID=$HOTEL_MSP
-export CORE_PEER_MSPCONFIGPATH=$HOTEL_MSP_DIR
-export CORE_PEER_ADDRESS=$HOTEL_ADDRESS
-export CORE_PEER_TLS_ROOTCERT_FILE=$HOTEL_TLS_CA
-peer lifecycle chaincode approveformyorg -o $ORDERER_ADDRESS --channelID $CHANNEL_NAME --name $CC_NAME --version $CC_VERSION --package-id $CC_PACKAGE_ID --sequence $CC_SEQUENCE --tls --cafile $ORDERER_CA
+echo "=== 6. Obteniendo Package ID ==="
+CC_PACKAGE_ID=$(peer lifecycle chaincode queryinstalled | grep $CC_LABEL | awk "{print \$3}" | sed "s/,//")
 
-echo "=== 10. Commit del Chaincode ==="
-export CORE_PEER_LOCALMSPID=$POLICIA_MSP
-export CORE_PEER_MSPCONFIGPATH=$POLICIA_MSP_DIR
-export CORE_PEER_ADDRESS=$POLICIA_ADDRESS
-export CORE_PEER_TLS_ROOTCERT_FILE=$POLICIA_TLS_CA
-peer lifecycle chaincode commit -o $ORDERER_ADDRESS --channelID $CHANNEL_NAME --name $CC_NAME --version $CC_VERSION --sequence $CC_SEQUENCE --tls --cafile $ORDERER_CA --peerAddresses $POLICIA_ADDRESS --tlsRootCertFiles $POLICIA_TLS_CA --peerAddresses $HOTEL_ADDRESS --tlsRootCertFiles $HOTEL_TLS_CA
+echo "=== 7. Aprobando (Policia) ==="
+export CORE_PEER_ADDRESS=peer0.policia.zeqium.com:7051
+export CORE_PEER_TLS_ROOTCERT_FILE="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/policia.zeqium.com/peers/peer0.policia.zeqium.com/tls/ca.crt"
+peer lifecycle chaincode approveformyorg -o orderer0.zeqium.com:7050 --ordererTLSHostnameOverride orderer0.zeqium.com --channelID $CHANNEL_NAME --name $CC_NAME --version $CC_VERSION --package-id $CC_PACKAGE_ID --sequence $CC_SEQUENCE --tls --cafile $ORDERER_CA
 
-echo "✅ Red Zeqium desplegada y lista."
+echo "=== 8. Aprobando (Hotel) ==="
+export CORE_PEER_LOCALMSPID="HotelMSP"
+export CORE_PEER_MSPCONFIGPATH="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/hotel.zeqium.com/users/Admin@hotel.zeqium.com/msp"
+export CORE_PEER_ADDRESS=peer0.hotel.zeqium.com:9051
+export CORE_PEER_TLS_ROOTCERT_FILE="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/hotel.zeqium.com/peers/peer0.hotel.zeqium.com/tls/ca.crt"
+peer lifecycle chaincode approveformyorg -o orderer0.zeqium.com:7050 --ordererTLSHostnameOverride orderer0.zeqium.com --channelID $CHANNEL_NAME --name $CC_NAME --version $CC_VERSION --package-id $CC_PACKAGE_ID --sequence $CC_SEQUENCE --tls --cafile $ORDERER_CA
+
+echo "=== 9. Commit en la red ==="
+peer lifecycle chaincode commit -o orderer0.zeqium.com:7050 --ordererTLSHostnameOverride orderer0.zeqium.com --channelID $CHANNEL_NAME --name $CC_NAME --version $CC_VERSION --sequence $CC_SEQUENCE --tls --cafile $ORDERER_CA --peerAddresses peer0.policia.zeqium.com:7051 --tlsRootCertFiles /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/policia.zeqium.com/peers/peer0.policia.zeqium.com/tls/ca.crt --peerAddresses peer0.hotel.zeqium.com:9051 --tlsRootCertFiles /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/hotel.zeqium.com/peers/peer0.hotel.zeqium.com/tls/ca.crt
+'
+
+echo -e "${GREEN}✅ Blockchain HA desplegada correctamente!${NC}"
