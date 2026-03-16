@@ -1,21 +1,22 @@
 /**
  * Descifra un mensaje JWE enviado por la App móvil
  */
-async function decryptJWE(jwe, privateKeyJWK) {
+async function decryptJWE(jweCompact, privateKeyJWK) {
     try {
-        // Usamos importación dinámica para soportar la última versión de 'jose'
-        const { compactDecrypt, importJWK } = await import('jose');
+        const { compactDecrypt, importJWK } = require('jose');
 
-        // Importamos la clave privada
+        // Importamos la clave privada asegurando el algoritmo correcto para la curva
         const privateKey = await importJWK(privateKeyJWK, 'ECDH-ES');
 
-        // Desciframos el paquete
-        const { plaintext } = await compactDecrypt(jwe, privateKey);
+        // Desciframos el paquete JWE compacto
+        const { plaintext } = await compactDecrypt(jweCompact, privateKey);
 
-        // Convertimos el buffer a objeto JSON
-        const decoded = new TextDecoder().decode(plaintext);
-        return JSON.parse(decoded);
+        // Convertimos el Uint8Array a String y luego a JSON
+        const decodedString = new TextDecoder().decode(plaintext);
+        return JSON.parse(decodedString);
+
     } catch (err) {
+        console.error("[CRYPTO ERROR] Fallo interno en descifrado JWE:", err);
         throw new Error('Fallo al descifrar el paquete JWE: ' + err.message);
     }
 }
