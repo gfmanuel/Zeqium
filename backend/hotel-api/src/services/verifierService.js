@@ -18,7 +18,10 @@ class VerifierService {
                 // 2. Capa 5: Resolver DID inmutable desde la Blockchain [cite: 307, 308]
                 const didDocResult = await evaluateTransaction('ResolveDID', payload.iss);
                 const didDocument = (typeof didDocResult === 'string') ? JSON.parse(didDocResult) : didDocResult;
-                const publicKeyJWK = didDocument.verificationMethod[0].publicKeyJwk;
+
+                // La blockchain guarda el objeto JWK serializado dentro del campo publicKeyMultibase
+                const verificationMethod = JSON.parse(didDocument.publicKeyMultibase);
+                const publicKeyJWK = verificationMethod.publicKeyJwk;
 
                 // 3. Verificación matemática de la firma Ed25519 [cite: 33, 374]
                 const publicKey = crypto.createPublicKey({ key: publicKeyJWK, format: 'jwk' });
