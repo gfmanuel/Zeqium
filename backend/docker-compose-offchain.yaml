@@ -51,7 +51,7 @@ services:
       - ./police-api/.env
     volumes:
       # Inyectamos los certificados en la misma ruta exacta que dice el connection.json
-      - /home/mgf00042/Zeqium/blockchain/network/crypto-config:/home/mgf00042/Zeqium/blockchain/network/crypto-config:ro
+      - /home/brcruz/Zeqium/blockchain/network/crypto-config:/home/brcruz/Zeqium/blockchain/network/crypto-config:ro
     depends_on:
       - redis-cache
       - zeqium-police-db
@@ -68,7 +68,7 @@ services:
       - ./hotel-api/.env
     volumes:
       # Inyectamos los certificados en la misma ruta exacta que dice el connection.json
-      - /home/mgf00042/Zeqium/blockchain/network/crypto-config:/home/mgf00042/Zeqium/blockchain/network/crypto-config:ro
+      - /home/brcruz/Zeqium/blockchain/network/crypto-config:/home/brcruz/Zeqium/blockchain/network/crypto-config:ro
     depends_on:
       - redis-cache
       - zeqium-hotel-db
