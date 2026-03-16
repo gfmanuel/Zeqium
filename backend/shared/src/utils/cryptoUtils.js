@@ -7,7 +7,7 @@ async function decryptJWE(jwe, privateKeyJWK) {
         const { compactDecrypt, importJWK } = await import('jose');
 
         // Importamos la clave privada
-        const privateKey = await importJWK(privateKeyJWK, 'X25519');
+        const privateKey = await importJWK(privateKeyJWK, 'ECDH-ES');
 
         // Desciframos el paquete
         const { plaintext } = await compactDecrypt(jwe, privateKey);

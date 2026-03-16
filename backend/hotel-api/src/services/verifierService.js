@@ -16,8 +16,8 @@ class VerifierService {
                 const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString());
 
                 // 2. Capa 5: Resolver DID inmutable desde la Blockchain [cite: 307, 308]
-                const didDocBuffer = await evaluateTransaction('ResolveDID', payload.iss);
-                const didDocument = JSON.parse(didDocBuffer.toString());
+                const didDocResult = await evaluateTransaction('ResolveDID', payload.iss);
+                const didDocument = (typeof didDocResult === 'string') ? JSON.parse(didDocResult) : didDocResult;
                 const publicKeyJWK = didDocument.verificationMethod[0].publicKeyJwk;
 
                 // 3. Verificación matemática de la firma Ed25519 [cite: 33, 374]
