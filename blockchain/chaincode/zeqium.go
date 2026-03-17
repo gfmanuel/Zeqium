@@ -82,6 +82,19 @@ func (s *SmartContract) ResolveDID(ctx contractapi.TransactionContextInterface, 
 	return &did, err
 }
 
+func (s *SmartContract) DeactivateDID(ctx contractapi.TransactionContextInterface, id string) error {
+	didBytes, err := ctx.GetStub().GetState(id)
+	if err != nil || didBytes == nil {
+		return fmt.Errorf("DID no encontrado")
+	}
+	var did DID
+	json.Unmarshal(didBytes, &did)
+
+	did.Status = "INACTIVE"
+	updatedBytes, _ := json.Marshal(did)
+	return ctx.GetStub().PutState(id, updatedBytes)
+}
+
 // --- B. ESTADO Y REVOCACIÓN ---
 
 func (s *SmartContract) PublishCredentialStatus(ctx contractapi.TransactionContextInterface, hash string, issuer string, timestamp string) error {
@@ -152,6 +165,28 @@ func (s *SmartContract) GetSchema(ctx contractapi.TransactionContextInterface, s
 	return &schema, nil
 }
 
+func (s *SmartContract) CreateCredentialDefinition(ctx contractapi.TransactionContextInterface, credDefID string, schemaID string, issuerDID string, publicKeys string) error {
+	credDef := CredentialDefinition{
+		AssetType:  "CredentialDefinition",
+		ID:         credDefID,
+		SchemaID:   schemaID,
+		IssuerDID:  issuerDID,
+		PublicKeys: publicKeys,
+	}
+	credDefBytes, _ := json.Marshal(credDef)
+	return ctx.GetStub().PutState(credDefID, credDefBytes)
+}
+
+func (s *SmartContract) GetCredentialDefinition(ctx contractapi.TransactionContextInterface, credDefID string) (*CredentialDefinition, error) {
+	credDefBytes, err := ctx.GetStub().GetState(credDefID)
+	if err != nil || credDefBytes == nil {
+		return nil, fmt.Errorf("Credential definition no encontrada")
+	}
+	var credDef CredentialDefinition
+	json.Unmarshal(credDefBytes, &credDef)
+	return &credDef, nil
+}
+
 // --- D. AUDITORÍA ---
 
 func (s *SmartContract) LogVerificationActivity(ctx contractapi.TransactionContextInterface, logID string, timestamp string, verifierDID string, proofHash string) error {
@@ -166,6 +201,48 @@ func (s *SmartContract) LogVerificationActivity(ctx contractapi.TransactionConte
 	err := ctx.GetStub().PutState(logID, logBytes)
 	ctx.GetStub().SetEvent("NewCheckin", logBytes)
 	return err
+}
+
+func (s *SmartContract) GetAuditLogs(ctx contractapi.TransactionContextInterface, verifierDID string) ([]*AuditLog, error) {
+	queryString := fmt.Sprintf(`{"selector":{"assetType":"AuditLog","verifierDID":"%s"}}`, verifierDID)
+	resultsIterator, err := ctx.GetStub().GetQueryResult(queryString)
+	if err != nil {
+		return nil, err
+	}
+	defer resultsIterator.Close()
+
+	var logs []*AuditLog
+	for resultsIterator.HasNext() {
+		queryResponse, err := resultsIterator.Next()
+		if err != nil {
+			return nil, err
+		}
+		var log AuditLog
+		json.Unmarshal(queryResponse.Value, &log)
+		logs = append(logs, &log)
+	}
+	return logs, nil
+}
+
+func (s *SmartContract) GetIssuerCredentialHistory(ctx contractapi.TransactionContextInterface, issuerDID string) ([]*CredentialStatus, error) {
+	queryString := fmt.Sprintf(`{"selector":{"assetType":"CredentialStatus","issuer":"%s"}}`, issuerDID)
+	resultsIterator, err := ctx.GetStub().GetQueryResult(queryString)
+	if err != nil {
+		return nil, err
+	}
+	defer resultsIterator.Close()
+
+	var history []*CredentialStatus
+	for resultsIterator.HasNext() {
+		queryResponse, err := resultsIterator.Next()
+		if err != nil {
+			return nil, err
+		}
+		var status CredentialStatus
+		json.Unmarshal(queryResponse.Value, &status)
+		history = append(history, &status)
+	}
+	return history, nil
 }
 
 func main() {
