@@ -20,8 +20,10 @@ class VerifierService {
                 const didDocument = (typeof didDocResult === 'string') ? JSON.parse(didDocResult) : didDocResult;
 
                 // La blockchain guarda el objeto JWK serializado dentro del campo publicKeyMultibase
-                const verificationMethod = JSON.parse(didDocument.publicKeyMultibase);
-                const publicKeyJWK = verificationMethod.publicKeyJwk;
+                const verificationMethodWrapper = JSON.parse(didDocument.publicKeyMultibase);
+
+                // Extraemos la clave pública de la estructura anidada generada en el registro
+                const publicKeyJWK = verificationMethodWrapper.verificationMethod[0].publicKeyJwk.publicKeyJwk || verificationMethodWrapper.verificationMethod[0].publicKeyJwk;
 
                 // 3. Verificación matemática de la firma Ed25519 [cite: 33, 374]
                 const publicKey = crypto.createPublicKey({ key: publicKeyJWK, format: 'jwk' });
