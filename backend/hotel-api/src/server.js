@@ -109,8 +109,26 @@ app.post('/api/hotel/checkin', async (req, res) => {
         const sdJwt = decryptedPayload.sdJwt;
 
         // C. Criptografía: Validar firma SD-JWT [cite: 262]
-        const payload = await verifierService.verifyPresentation(sdJwt);
+        const rawPayload = await verifierService.verifyPresentation(sdJwt);
         const credentialHash = crypto.createHash('sha256').update(sdJwt).digest('hex');
+
+        // Helper para reconvertir valores disgregados a strings
+        const normalizeClaim = (claim) => {
+            if (!claim) return claim;
+            if (typeof claim === 'string') return claim;
+            if (typeof claim === 'object') {
+                return Object.values(claim).join(''); // {"0":"C","1":"a"} -> "Ca"
+            }
+            return String(claim);
+        };
+
+        const payload = {
+            sub: rawPayload.sub,
+            national_id: normalizeClaim(rawPayload.national_id),
+            birth_date: normalizeClaim(rawPayload.birth_date),
+            given_name: normalizeClaim(rawPayload.given_name),
+            family_name: normalizeClaim(rawPayload.family_name)
+        };
 
         // --- VALIDACIÓN DE CONSTRAINTS (DIF PE) --- [cite: 29, 332]
         const requiredFields = ['national_id', 'birth_date', 'given_name', 'family_name'];
