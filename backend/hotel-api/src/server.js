@@ -208,8 +208,8 @@ app.get('/api/hotel/audit/logs', authMiddleware(ROLES.HOTEL_RECEPTIONIST), async
 
 app.get('/api/hotel/audit/ledger', authMiddleware(ROLES.HOTEL_RECEPTIONIST), async (req, res) => {
     try {
-        const resultBuffer = await evaluateTransaction('GetAuditLogs', process.env.HOTEL_DID);
-        res.json({ success: true, ledger: JSON.parse(resultBuffer.toString()) });
+        const ledgerData = await evaluateTransaction('GetAuditLogs', process.env.HOTEL_DID);
+        res.json({ success: true, ledger: ledgerData });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

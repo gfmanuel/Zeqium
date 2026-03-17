@@ -72,17 +72,18 @@ CC_PACKAGE_ID=$(peer lifecycle chaincode queryinstalled | grep $CC_LABEL | awk "
 echo "=== 7. Aprobando (Policia) ==="
 export CORE_PEER_ADDRESS=peer0.policia.zeqium.com:7051
 export CORE_PEER_TLS_ROOTCERT_FILE="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/policia.zeqium.com/peers/peer0.policia.zeqium.com/tls/ca.crt"
-peer lifecycle chaincode approveformyorg -o orderer0.zeqium.com:7050 --ordererTLSHostnameOverride orderer0.zeqium.com --channelID $CHANNEL_NAME --name $CC_NAME --version $CC_VERSION --package-id $CC_PACKAGE_ID --sequence $CC_SEQUENCE --tls --cafile $ORDERER_CA
+peer lifecycle chaincode approveformyorg -o orderer0.zeqium.com:7050 --ordererTLSHostnameOverride orderer0.zeqium.com --channelID $CHANNEL_NAME --name $CC_NAME --version $CC_VERSION --package-id $CC_PACKAGE_ID --sequence $CC_SEQUENCE --tls --cafile $ORDERER_CA --signature-policy "OR('PoliciaMSP.peer','HotelMSP.peer')"
 
 echo "=== 8. Aprobando (Hotel) ==="
 export CORE_PEER_LOCALMSPID="HotelMSP"
 export CORE_PEER_MSPCONFIGPATH="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/hotel.zeqium.com/users/Admin@hotel.zeqium.com/msp"
 export CORE_PEER_ADDRESS=peer0.hotel.zeqium.com:9051
 export CORE_PEER_TLS_ROOTCERT_FILE="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/hotel.zeqium.com/peers/peer0.hotel.zeqium.com/tls/ca.crt"
-peer lifecycle chaincode approveformyorg -o orderer0.zeqium.com:7050 --ordererTLSHostnameOverride orderer0.zeqium.com --channelID $CHANNEL_NAME --name $CC_NAME --version $CC_VERSION --package-id $CC_PACKAGE_ID --sequence $CC_SEQUENCE --tls --cafile $ORDERER_CA
+peer lifecycle chaincode approveformyorg -o orderer0.zeqium.com:7050 --ordererTLSHostnameOverride orderer0.zeqium.com --channelID $CHANNEL_NAME --name $CC_NAME --version $CC_VERSION --package-id $CC_PACKAGE_ID --sequence $CC_SEQUENCE --tls --cafile $ORDERER_CA --signature-policy "OR('PoliciaMSP.peer','HotelMSP.peer')"
 
 echo "=== 9. Commit en la red ==="
-peer lifecycle chaincode commit -o orderer0.zeqium.com:7050 --ordererTLSHostnameOverride orderer0.zeqium.com --channelID $CHANNEL_NAME --name $CC_NAME --version $CC_VERSION --sequence $CC_SEQUENCE --tls --cafile $ORDERER_CA --peerAddresses peer0.policia.zeqium.com:7051 --tlsRootCertFiles /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/policia.zeqium.com/peers/peer0.policia.zeqium.com/tls/ca.crt --peerAddresses peer0.hotel.zeqium.com:9051 --tlsRootCertFiles /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/hotel.zeqium.com/peers/peer0.hotel.zeqium.com/tls/ca.crt
-'
+echo "⏳ Dando 5 segundos a los nodos para sincronizar las aprobaciones..."
+sleep 5
+peer lifecycle chaincode commit -o orderer0.zeqium.com:7050 --ordererTLSHostnameOverride orderer0.zeqium.com --channelID $CHANNEL_NAME --name $CC_NAME --version $CC_VERSION --sequence $CC_SEQUENCE --tls --cafile $ORDERER_CA --peerAddresses peer0.policia.zeqium.com:7051 --tlsRootCertFiles /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/policia.zeqium.com/peers/peer0.policia.zeqium.com/tls/ca.crt --peerAddresses peer0.hotel.zeqium.com:9051 --tlsRootCertFiles /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/hotel.zeqium.com/peers/peer0.hotel.zeqium.com/tls/ca.crt --signature-policy "OR('PoliciaMSP.peer','HotelMSP.peer')"
 
 echo -e "${GREEN}✅ Blockchain HA desplegada correctamente!${NC}"

@@ -326,8 +326,8 @@ app.get('/api/issuer/history', authMiddleware(ROLES.POLICE_ADMIN), async (req, r
 
 app.get('/api/issuer/audit/log', authMiddleware(ROLES.POLICE_ADMIN), async (req, res) => {
   try {
-    const resultBuffer = await evaluateTransaction('GetIssuerCredentialHistory', ISSUER_DID);
-    res.json({ success: true, audit: JSON.parse(resultBuffer.toString()) });
+    const auditData = await evaluateTransaction('GetIssuerCredentialHistory', ISSUER_DID);
+    res.json({ success: true, audit: auditData });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
