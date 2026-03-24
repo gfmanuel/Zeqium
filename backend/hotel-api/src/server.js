@@ -217,10 +217,10 @@ app.get('/api/hotel/audit/ledger', authMiddleware(ROLES.HOTEL_RECEPTIONIST), asy
 
 app.get('/api/hotel/audit/export', authMiddleware(ROLES.HOTEL_RECEPTIONIST), async (req, res) => {
     try {
-        const result = await pool.query("SELECT did_huesped, nombre, apellidos, habitacion, fecha_entrada, fecha_salida_prevista, estado, credential_hash FROM stays ORDER BY fecha_entrada DESC");
-        const fields = ['DID Huesped', 'Nombre', 'Apellidos', 'Habitacion', 'Entrada', 'Salida Prevista', 'Estado', 'Hash Verificado'];
+        const result = await pool.query("SELECT did_huesped, nombre, apellidos, habitacion, fecha_entrada, estado, credential_hash FROM stays ORDER BY fecha_entrada DESC");
+        const fields = ['DID Huesped', 'Nombre', 'Apellidos', 'Habitacion', 'Entrada', 'Estado', 'Hash Verificado'];
         const csvRows = result.rows.map(row =>
-            `"${row.did_huesped}","${row.nombre}","${row.apellidos}","${row.habitacion}","${row.fecha_entrada}","${row.fecha_salida_prevista || 'N/A'}","${row.estado}","${row.credential_hash}"`
+            `"${row.did_huesped}","${row.nombre}","${row.apellidos}","${row.habitacion}","${row.fecha_entrada}","${row.estado}","${row.credential_hash}"`
         );
 
         res.header('Content-Type', 'text/csv');
