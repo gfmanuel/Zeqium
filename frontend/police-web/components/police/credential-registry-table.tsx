@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,87 +20,110 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { ScrollText, Search, AlertTriangle, Filter } from "lucide-react"
+import { ScrollText, Search, AlertTriangle, Filter, Loader2, RefreshCw, Download } from "lucide-react"
+import { getHistory, revokeCredential, exportAuditCSV, type CredentialHistoryItem } from "@/lib/api"
 
-interface Credential {
-  id: string
-  didTitular: string
-  dni: string
-  nombreCompleto: string
-  fechaEmision: string
-  estado: "activa" | "revocada"
+interface CredentialRegistryTableProps {
+  fullWidth?: boolean
 }
 
-const mockCredentials: Credential[] = [
-  {
-    id: "1",
-    didTitular: "did:zeqium:wallet:a1b2c3d4e5f6789012345",
-    dni: "12345678Z",
-    nombreCompleto: "Carlos García López",
-    fechaEmision: "2024-01-15",
-    estado: "activa",
-  },
-  {
-    id: "2",
-    didTitular: "did:zeqium:wallet:f9e8d7c6b5a4321098765",
-    dni: "87654321X",
-    nombreCompleto: "María Rodríguez Sánchez",
-    fechaEmision: "2024-01-10",
-    estado: "activa",
-  },
-  {
-    id: "3",
-    didTitular: "did:zeqium:wallet:1a2b3c4d5e6f789012345",
-    dni: "11223344Y",
-    nombreCompleto: "Antonio Martínez Ruiz",
-    fechaEmision: "2023-12-20",
-    estado: "revocada",
-  },
-]
-
-export function CredentialRegistryTable() {
+export function CredentialRegistryTable({ fullWidth = false }: CredentialRegistryTableProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("todos")
-  const [credentials, setCredentials] = useState<Credential[]>(mockCredentials)
+  const [credentials, setCredentials] = useState<CredentialHistoryItem[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [revokingHash, setRevokingHash] = useState<string | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
+
+  const loadCredentials = useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const data = await getHistory()
+      setCredentials(data.history || [])
+    } catch {
+      // will show empty state
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadCredentials()
+  }, [loadCredentials])
 
   const filteredCredentials = credentials.filter((credential) => {
     const matchesSearch =
-      credential.dni.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      credential.didTitular.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      credential.nombreCompleto.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesStatus =
-      statusFilter === "todos" || credential.estado === statusFilter
+      credential.did_holder.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      credential.credential_hash.toLowerCase().includes(searchQuery.toLowerCase())
+    const estadoNormalized = credential.estado === 'ACTIVE' ? 'activa' : 'revocada'
+    const matchesStatus = statusFilter === "todos" || estadoNormalized === statusFilter
 
     return matchesSearch && matchesStatus
   })
 
-  const truncateDid = (did: string) => {
-    if (did.length <= 25) return did
-    return `${did.slice(0, 15)}...${did.slice(-8)}`
+  const truncateStr = (str: string, maxLen = 25) => {
+    if (str.length <= maxLen) return str
+    return `${str.slice(0, 12)}...${str.slice(-8)}`
   }
 
-  const handleRevoke = (id: string) => {
-    setCredentials((prev) =>
-      prev.map((cred) =>
-        cred.id === id ? { ...cred, estado: "revocada" as const } : cred
-      )
-    )
+  const handleRevoke = async (hash: string) => {
+    if (!confirm('¿Seguro que deseas revocar esta credencial? Esta acción es irreversible.')) return
+    setRevokingHash(hash)
+    try {
+      await revokeCredential(hash, 'ADMIN_REVOCATION')
+      await loadCredentials()
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Error al revocar')
+    } finally {
+      setRevokingHash(null)
+    }
   }
+
+  const handleExportCSV = async () => {
+    setIsExporting(true)
+    try {
+      const data = await exportAuditCSV()
+      const blob = new Blob([data.csv], { type: 'text/csv' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'zeqium_police_audit.csv'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Error al exportar')
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const activas = credentials.filter(c => c.estado === 'ACTIVE').length
+  const revocadas = credentials.filter(c => c.estado === 'REVOKED').length
 
   return (
-    <Card className="flex-1 border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <Card className={`border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900 ${fullWidth ? 'w-full' : 'flex-1'}`}>
       <CardHeader className="border-b border-slate-100 dark:border-slate-800">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
-            <ScrollText className="h-5 w-5" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+              <ScrollText className="h-5 w-5" />
+            </div>
+            <div>
+              <CardTitle className="text-lg text-slate-900 dark:text-white">
+                Registro Global de Credenciales
+              </CardTitle>
+              <CardDescription className="text-slate-500 dark:text-slate-400">
+                Consulte y gestione el estado de las credenciales emitidas
+              </CardDescription>
+            </div>
           </div>
-          <div>
-            <CardTitle className="text-lg text-slate-900 dark:text-white">
-              Registro Global de Credenciales
-            </CardTitle>
-            <CardDescription className="text-slate-500 dark:text-slate-400">
-              Consulte y gestione el estado de las credenciales emitidas
-            </CardDescription>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={isExporting} title="Exportar CSV">
+              {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            </Button>
+            <Button variant="outline" size="sm" onClick={loadCredentials} disabled={isLoading} title="Refrescar">
+              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </Button>
           </div>
         </div>
       </CardHeader>
@@ -110,7 +133,7 @@ export function CredentialRegistryTable() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input
-              placeholder="Buscar por DNI, DID o nombre..."
+              placeholder="Buscar por DID o hash..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="border-slate-200 bg-white pl-9 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800"
@@ -132,96 +155,103 @@ export function CredentialRegistryTable() {
         </div>
 
         {/* Credentials Table */}
-        <div className="rounded-lg border border-slate-200 dark:border-slate-700">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-slate-200 bg-slate-50 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50">
-                <TableHead className="text-slate-600 dark:text-slate-400">DID Titular</TableHead>
-                <TableHead className="text-slate-600 dark:text-slate-400">DNI</TableHead>
-                <TableHead className="text-slate-600 dark:text-slate-400">Fecha Emisión</TableHead>
-                <TableHead className="text-slate-600 dark:text-slate-400">Estado</TableHead>
-                <TableHead className="text-right text-slate-600 dark:text-slate-400">Acción</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredCredentials.map((credential) => (
-                <TableRow
-                  key={credential.id}
-                  className="border-slate-200 dark:border-slate-700"
-                >
-                  <TableCell className="font-mono text-xs text-slate-600 dark:text-slate-300">
-                    <span title={credential.didTitular}>
-                      {truncateDid(credential.didTitular)}
-                    </span>
-                  </TableCell>
-                  <TableCell className="font-mono font-medium text-slate-900 dark:text-white">
-                    {credential.dni}
-                  </TableCell>
-                  <TableCell className="text-slate-600 dark:text-slate-400">
-                    {new Date(credential.fechaEmision).toLocaleDateString("es-ES", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "numeric",
-                    })}
-                  </TableCell>
-                  <TableCell>
-                    {credential.estado === "activa" ? (
-                      <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/50 dark:text-emerald-300">
-                        Activa
-                      </Badge>
-                    ) : (
-                      <Badge className="bg-red-100 text-red-700 hover:bg-red-100 dark:bg-red-900/50 dark:text-red-300">
-                        Revocada
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {credential.estado === "activa" ? (
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => handleRevoke(credential.id)}
-                        className="bg-red-600 text-white hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800"
-                      >
-                        <AlertTriangle className="mr-1.5 h-3.5 w-3.5" />
-                        Revocación Global
-                      </Button>
-                    ) : (
-                      <span className="text-xs text-slate-400">No disponible</span>
-                    )}
-                  </TableCell>
+        {isLoading ? (
+          <div className="flex h-32 items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin text-indigo-500" />
+          </div>
+        ) : (
+          <div className="rounded-lg border border-slate-200 dark:border-slate-700">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-slate-200 bg-slate-50 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50">
+                  <TableHead className="text-slate-600 dark:text-slate-400">DID Titular</TableHead>
+                  <TableHead className="text-slate-600 dark:text-slate-400">Hash</TableHead>
+                  <TableHead className="text-slate-600 dark:text-slate-400">Fecha Emisión</TableHead>
+                  <TableHead className="text-slate-600 dark:text-slate-400">Estado</TableHead>
+                  <TableHead className="text-right text-slate-600 dark:text-slate-400">Acción</TableHead>
                 </TableRow>
-              ))}
-              {filteredCredentials.length === 0 && (
-                <TableRow>
-                  <TableCell
-                    colSpan={5}
-                    className="h-24 text-center text-slate-500 dark:text-slate-400"
-                  >
-                    No se encontraron credenciales con los filtros aplicados.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {filteredCredentials.map((credential, idx) => (
+                  <TableRow key={idx} className="border-slate-200 dark:border-slate-700">
+                    <TableCell className="font-mono text-xs text-slate-600 dark:text-slate-300">
+                      <span title={credential.did_holder}>
+                        {truncateStr(credential.did_holder)}
+                      </span>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-slate-600 dark:text-slate-300">
+                      <span title={credential.credential_hash}>
+                        {truncateStr(credential.credential_hash)}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-slate-600 dark:text-slate-400">
+                      {new Date(credential.fecha_emision).toLocaleDateString("es-ES", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                      })}
+                    </TableCell>
+                    <TableCell>
+                      {credential.estado === "ACTIVE" ? (
+                        <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/50 dark:text-emerald-300">
+                          Activa
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-red-100 text-red-700 hover:bg-red-100 dark:bg-red-900/50 dark:text-red-300">
+                          Revocada
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {credential.estado === "ACTIVE" ? (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleRevoke(credential.credential_hash)}
+                          disabled={revokingHash === credential.credential_hash}
+                          className="bg-red-600 text-white hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800"
+                        >
+                          {revokingHash === credential.credential_hash ? (
+                            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <AlertTriangle className="mr-1.5 h-3.5 w-3.5" />
+                          )}
+                          Revocar
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-slate-400">
+                          {credential.fecha_revocacion
+                            ? new Date(credential.fecha_revocacion).toLocaleDateString("es-ES")
+                            : "Revocada"}
+                        </span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {filteredCredentials.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center text-slate-500 dark:text-slate-400">
+                      {credentials.length === 0
+                        ? "No hay credenciales emitidas aún."
+                        : "No se encontraron credenciales con los filtros aplicados."}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
 
         {/* Summary */}
         <div className="mt-4 flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
           <span>
-            Total: <strong className="text-slate-700 dark:text-slate-300">{credentials.length}</strong> credenciales
+            Total: <strong className="text-slate-700 dark:text-slate-300">{credentials.length}</strong>
           </span>
           <span>
-            Activas:{" "}
-            <strong className="text-emerald-600 dark:text-emerald-400">
-              {credentials.filter((c) => c.estado === "activa").length}
-            </strong>
+            Activas: <strong className="text-emerald-600 dark:text-emerald-400">{activas}</strong>
           </span>
           <span>
-            Revocadas:{" "}
-            <strong className="text-red-600 dark:text-red-400">
-              {credentials.filter((c) => c.estado === "revocada").length}
-            </strong>
+            Revocadas: <strong className="text-red-600 dark:text-red-400">{revocadas}</strong>
           </span>
         </div>
       </CardContent>

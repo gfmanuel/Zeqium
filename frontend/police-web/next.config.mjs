@@ -1,10 +1,23 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'standalone',
   typescript: {
     ignoreBuildErrors: true,
   },
   images: {
     unoptimized: true,
+  },
+  turbopack: {
+    root: import.meta.dirname,
+  },
+  async rewrites() {
+    const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://serezade.ujaen.es:8015'
+    return [
+      {
+        source: '/api/police/:path*',
+        destination: `${apiBase}/api/police/:path*`,
+      },
+    ]
   },
 }
 

@@ -14,11 +14,14 @@ import {
   Shield,
   ChevronLeft,
   ChevronRight,
+  LogOut,
 } from "lucide-react"
+import { clearToken } from "@/lib/api"
 
 interface PoliceSidebarProps {
   activeItem?: string
   onItemChange?: (item: string) => void
+  onLogout?: () => void
 }
 
 const menuItems = [
@@ -28,7 +31,7 @@ const menuItems = [
   { id: "gestion-infraestructura", label: "Gestión Infraestructura (Schemas)", icon: Settings2 },
 ]
 
-export function PoliceSidebar({ activeItem = "emitir-credencial", onItemChange }: PoliceSidebarProps) {
+export function PoliceSidebar({ activeItem = "emitir-credencial", onItemChange, onLogout }: PoliceSidebarProps) {
   const [isDark, setIsDark] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(false)
 
@@ -114,6 +117,15 @@ export function PoliceSidebar({ activeItem = "emitir-credencial", onItemChange }
             title={isDark ? "Modo claro" : "Modo oscuro"}
           >
             {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => { clearToken(); onLogout?.(); window.location.reload() }}
+            className="h-8 w-8 text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400"
+            title="Cerrar sesión"
+          >
+            <LogOut className="h-4 w-4" />
           </Button>
         </div>
       </div>

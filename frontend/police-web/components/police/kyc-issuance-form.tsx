@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Field, FieldLabel, FieldGroup, FieldDescription } from "@/components/ui/field"
-import { FileKey2, QrCode, Hash, CheckCircle2 } from "lucide-react"
+import { FileKey2, Hash, CheckCircle2, Loader2, AlertCircle, Copy, Check } from "lucide-react"
+import { getAuthRequest, issueCredential } from "@/lib/api"
 
 interface FormData {
   nombre: string
@@ -23,12 +24,17 @@ export function KycIssuanceForm() {
     numeroDni: "",
     holderDid: "",
   })
+  const [isLoading, setIsLoading] = useState(false)
   const [isGenerated, setIsGenerated] = useState(false)
   const [hash, setHash] = useState("")
+  const [sdJwt, setSdJwt] = useState("")
+  const [error, setError] = useState("")
+  const [copied, setCopied] = useState(false)
 
   const handleInputChange = (field: keyof FormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
     setIsGenerated(false)
+    setError("")
   }
 
   const validateDni = (dni: string): boolean => {
@@ -36,13 +42,44 @@ export function KycIssuanceForm() {
     return dniRegex.test(dni)
   }
 
-  const generateCredential = () => {
-    // Simulate hash generation
-    const simulatedHash = `SHA256:${Array.from({ length: 64 }, () => 
-      Math.floor(Math.random() * 16).toString(16)
-    ).join("")}`
-    setHash(simulatedHash)
-    setIsGenerated(true)
+  const generateCredential = async () => {
+    setIsLoading(true)
+    setError("")
+    setIsGenerated(false)
+
+    try {
+      // 1. Get nonce from backend
+      const authData = await getAuthRequest()
+      const nonce = authData.nonce
+
+      // 2. Issue credential
+      const result = await issueCredential({
+        schemaID: 'schema:zeqium:gov:dni:v1',
+        holderDID: formData.holderDid,
+        nonce,
+        userData: {
+          given_name: formData.nombre,
+          family_name: formData.apellidos,
+          birth_date: formData.fechaNacimiento,
+          national_id: formData.numeroDni,
+          nacionalidad: 'Española'
+        }
+      })
+
+      setHash(result.statusHash)
+      setSdJwt(result.credential)
+      setIsGenerated(true)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error desconocido al emitir credencial')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const copyHash = () => {
+    navigator.clipboard.writeText(hash)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   const isFormValid =
@@ -151,59 +188,59 @@ export function KycIssuanceForm() {
           {/* Generate Button */}
           <Button
             onClick={generateCredential}
-            disabled={!isFormValid}
+            disabled={!isFormValid || isLoading}
             className="mt-2 w-full bg-indigo-700 text-white hover:bg-indigo-800 disabled:bg-slate-200 disabled:text-slate-400 dark:bg-indigo-600 dark:hover:bg-indigo-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-600"
           >
-            <FileKey2 className="mr-2 h-4 w-4" />
-            Generar Oferta y Firmar Credencial
+            {isLoading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <FileKey2 className="mr-2 h-4 w-4" />
+            )}
+            {isLoading ? 'Emitiendo credencial...' : 'Generar Oferta y Firmar Credencial'}
           </Button>
         </FieldGroup>
+
+        {/* Error */}
+        {error && (
+          <div className="mt-4 flex items-center gap-2 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            {error}
+          </div>
+        )}
 
         {/* Generated Credential Panel */}
         {isGenerated && (
           <div className="mt-6 rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-950">
             <div className="mb-4 flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
               <CheckCircle2 className="h-5 w-5" />
-              <span className="font-medium">Credencial Generada Exitosamente</span>
+              <span className="font-medium">Credencial Emitida y Anclada en Blockchain</span>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {/* QR Code */}
-              <div className="flex flex-col items-center rounded-lg bg-white p-4 dark:bg-slate-800">
-                <span className="mb-2 flex items-center gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                  <QrCode className="h-3 w-3" />
-                  Offer QR Code
-                </span>
-                <div className="flex h-32 w-32 items-center justify-center rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900">
-                  {/* Placeholder QR Pattern */}
-                  <svg viewBox="0 0 100 100" className="h-24 w-24">
-                    <rect x="10" y="10" width="25" height="25" fill="currentColor" className="text-slate-800 dark:text-white" />
-                    <rect x="65" y="10" width="25" height="25" fill="currentColor" className="text-slate-800 dark:text-white" />
-                    <rect x="10" y="65" width="25" height="25" fill="currentColor" className="text-slate-800 dark:text-white" />
-                    <rect x="15" y="15" width="15" height="15" fill="currentColor" className="text-white dark:text-slate-800" />
-                    <rect x="70" y="15" width="15" height="15" fill="currentColor" className="text-white dark:text-slate-800" />
-                    <rect x="15" y="70" width="15" height="15" fill="currentColor" className="text-white dark:text-slate-800" />
-                    <rect x="18" y="18" width="9" height="9" fill="currentColor" className="text-slate-800 dark:text-white" />
-                    <rect x="73" y="18" width="9" height="9" fill="currentColor" className="text-slate-800 dark:text-white" />
-                    <rect x="18" y="73" width="9" height="9" fill="currentColor" className="text-slate-800 dark:text-white" />
-                    <rect x="40" y="10" width="5" height="5" fill="currentColor" className="text-slate-800 dark:text-white" />
-                    <rect x="50" y="10" width="5" height="5" fill="currentColor" className="text-slate-800 dark:text-white" />
-                    <rect x="40" y="20" width="5" height="5" fill="currentColor" className="text-slate-800 dark:text-white" />
-                    <rect x="45" y="25" width="5" height="5" fill="currentColor" className="text-slate-800 dark:text-white" />
-                    <rect x="40" y="40" width="20" height="20" fill="currentColor" className="text-slate-800 dark:text-white" />
-                    <rect x="45" y="45" width="10" height="10" fill="currentColor" className="text-white dark:text-slate-800" />
-                  </svg>
+            <div className="space-y-4">
+              {/* Hash */}
+              <div className="rounded-lg bg-white p-4 dark:bg-slate-800">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="flex items-center gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                    <Hash className="h-3 w-3" />
+                    Hash SHA-256 (Estado On-Chain)
+                  </span>
+                  <Button variant="ghost" size="sm" onClick={copyHash} className="h-7 px-2 text-xs">
+                    {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                  </Button>
                 </div>
+                <code className="block break-all rounded bg-slate-100 p-2 font-mono text-xs text-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                  {hash}
+                </code>
               </div>
 
-              {/* Hash */}
-              <div className="flex flex-col rounded-lg bg-white p-4 dark:bg-slate-800">
+              {/* SD-JWT */}
+              <div className="rounded-lg bg-white p-4 dark:bg-slate-800">
                 <span className="mb-2 flex items-center gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                  <Hash className="h-3 w-3" />
-                  Hash SHA-256
+                  <FileKey2 className="h-3 w-3" />
+                  SD-JWT (Credencial Firmada)
                 </span>
-                <code className="break-all rounded bg-slate-100 p-2 font-mono text-xs text-slate-700 dark:bg-slate-900 dark:text-slate-300">
-                  {hash}
+                <code className="block max-h-24 overflow-auto break-all rounded bg-slate-100 p-2 font-mono text-xs text-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                  {sdJwt}
                 </code>
               </div>
             </div>
