@@ -175,7 +175,7 @@ app.post('/api/hotel/checkin', async (req, res) => {
             nombre: payload.given_name, apellidos: payload.family_name, habitacion: habitacionAsignada, hora: new Date().toLocaleTimeString(), auditId
         });
 
-        res.json({ success: true, message: "¡DNI verificado!", user_checked_in: { nombre: payload.given_name, habitacion: habitacionAsignada }, auditId });
+        res.json({ success: true, message: "¡DNI verificado!", user_checked_in: { nombre: payload.given_name, habitacion: habitacionAsignada, did: payload.sub }, auditId });
     } catch (err) {
         console.error("Fallo en verificación:", err.message);
         res.status(401).json({ error: "Fallo en la verificación: " + err.message });
@@ -187,7 +187,7 @@ app.post('/api/hotel/checkin', async (req, res) => {
 // ==========================================
 app.get('/api/hotel/guests/active', authMiddleware(ROLES.HOTEL_RECEPTIONIST), async (req, res) => {
     try {
-        const result = await pool.query("SELECT id, nombre, apellidos, habitacion, fecha_entrada, estado FROM stays WHERE estado = 'Checked-in' ORDER BY fecha_entrada DESC");
+        const result = await pool.query("SELECT * FROM stays WHERE estado = 'Checked-in' ORDER BY fecha_entrada DESC");
         res.json({ success: true, guests: result.rows });
     } catch (err) {
         res.status(500).json({ error: 'Error al consultar huéspedes: ' + err.message });
