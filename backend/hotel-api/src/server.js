@@ -112,10 +112,6 @@ app.post('/api/hotel/checkin', async (req, res) => {
         const rawPayload = await verifierService.verifyPresentation(sdJwt);
         const credentialHash = crypto.createHash('sha256').update(sdJwt).digest('hex');
 
-        const jwtPayloadBase64 = sdJwt.split('.')[1];
-        const decodedJwtPayload = JSON.parse(Buffer.from(jwtPayloadBase64, 'base64').toString('utf8'));
-        const userDid = decodedJwtPayload.sub;
-
         // Helper para reconvertir valores disgregados a strings
         const normalizeClaim = (claim) => {
             if (!claim) return claim;
@@ -127,7 +123,7 @@ app.post('/api/hotel/checkin', async (req, res) => {
         };
 
         const payload = {
-            sub: userDid,
+            sub: rawPayload.sub,
             national_id: normalizeClaim(rawPayload.national_id),
             birth_date: normalizeClaim(rawPayload.birth_date),
             given_name: normalizeClaim(rawPayload.given_name),
