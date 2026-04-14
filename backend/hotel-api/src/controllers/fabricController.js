@@ -6,7 +6,7 @@ const { Gateway, Wallets } = require('fabric-network');
 const ccp = require('../config/connection-hotel.json');
 
 // Ruta a los certificados criptográficos del Hotel
-const mspBasePath = '/home/mgf00042/Zeqium/blockchain/network/crypto-config/peerOrganizations/hotel.zeqium.com/users/Admin@hotel.zeqium.com/msp';
+const mspBasePath = '/home/brcruz/Zeqium/blockchain/network/crypto-config/peerOrganizations/hotel.zeqium.com/users/Admin@hotel.zeqium.com/msp';
 
 let walletPromise;
 

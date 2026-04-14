@@ -6,7 +6,7 @@ const { Gateway, Wallets } = require('fabric-network');
 const ccp = require('../config/connection-police.json');
 
 
-const mspBasePath = '/home/mgf00042/Zeqium/blockchain/network/crypto-config/peerOrganizations/policia.zeqium.com/users/Admin@policia.zeqium.com/msp';
+const mspBasePath = '/home/brcruz/Zeqium/blockchain/network/crypto-config/peerOrganizations/policia.zeqium.com/users/Admin@policia.zeqium.com/msp';
 
 
 let walletPromise;
