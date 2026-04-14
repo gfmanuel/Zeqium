@@ -19,11 +19,17 @@ const initDB = async () => {
             estado VARCHAR(50) DEFAULT 'ACTIVE'
         );
     `;
-    try {
-        await pool.query(queryText);
-        console.log('👮 Base de datos de la Policía conectada (Tabla: issued_credentials lista)');
-    } catch (err) {
-        console.error('❌ Error conectando a PostgreSQL (Policía):', err.message);
+    let retries = 5;
+    while (retries) {
+        try {
+            await pool.query(queryText);
+            console.log('👮 Base de datos de la Policía conectada (Tabla: issued_credentials lista)');
+            break;
+        } catch (err) {
+            console.error(`❌ Error conectando a PostgreSQL (Policía). Reintentos restantes: ${retries - 1}. Error: ${err.message}`);
+            retries -= 1;
+            await new Promise(res => setTimeout(res, 5000));
+        }
     }
 };
 

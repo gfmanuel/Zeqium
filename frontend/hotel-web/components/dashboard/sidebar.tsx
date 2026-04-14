@@ -12,7 +12,7 @@ import {
   Building2,
   LogOut,
 } from "lucide-react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { clearToken } from "@/lib/api"
 
 interface SidebarProps {
   activeItem?: string
@@ -37,7 +37,7 @@ export function DashboardSidebar({ activeItem = "checkin", onNavigate }: Sidebar
         </div>
         <div>
           <h1 className="text-lg font-semibold text-sidebar-foreground">Zeqium</h1>
-          <p className="text-xs text-muted-foreground">Hotel</p>
+          <p className="text-xs text-muted-foreground">Hotel · Recepción</p>
         </div>
       </div>
 
@@ -64,38 +64,34 @@ export function DashboardSidebar({ activeItem = "checkin", onNavigate }: Sidebar
         })}
       </nav>
 
-      {/* Profile & Theme Toggle */}
+      {/* Theme + Logout */}
       <div className="border-t border-sidebar-border p-4">
-        <div className="flex items-center gap-3">
-          <Avatar className="size-10">
-            <AvatarImage src="/placeholder-avatar.jpg" alt="Recepcionista" />
-            <AvatarFallback className="bg-muted text-muted-foreground">MR</AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <p className="truncate text-sm font-medium text-sidebar-foreground">
-              María Rodríguez
-            </p>
-            <p className="truncate text-xs text-muted-foreground">Recepcionista</p>
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">Recepcionista</span>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              title="Alternar tema"
+            >
+              <Sun className="size-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+              <Moon className="absolute size-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+              <span className="sr-only">Alternar tema</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => { clearToken(); window.location.reload() }}
+              title="Cerrar sesión"
+              className="text-muted-foreground hover:text-destructive"
+            >
+              <LogOut className="size-4" />
+            </Button>
           </div>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="shrink-0"
-          >
-            <Sun className="size-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-            <Moon className="absolute size-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-            <span className="sr-only">Alternar tema</span>
-          </Button>
         </div>
-        <Button
-          variant="ghost"
-          className="mt-3 w-full justify-start gap-2 text-muted-foreground"
-        >
-          <LogOut className="size-4" />
-          Cerrar sesión
-        </Button>
       </div>
     </aside>
   )
 }
+

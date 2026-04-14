@@ -11,7 +11,7 @@ const nextConfig = {
     root: import.meta.dirname,
   },
   async rewrites() {
-    const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://serezade.ujaen.es:8015'
+    const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost'
     return [
       {
         source: '/api/police/:path*',

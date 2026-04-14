@@ -23,11 +23,17 @@ const initDB = async () => {
             credential_hash VARCHAR(255) NOT NULL
         );
     `;
-    try {
-        await pool.query(queryText);
-        console.log('✅ Base de datos del Hotel conectada (Tabla: stays lista)');
-    } catch (err) {
-        console.error('❌ Error conectando a PostgreSQL:', err.message);
+    let retries = 5;
+    while (retries) {
+        try {
+            await pool.query(queryText);
+            console.log('✅ Base de datos del Hotel conectada (Tabla: stays lista)');
+            break;
+        } catch (err) {
+            console.error(`❌ Error conectando a PostgreSQL. Reintentos restantes: ${retries - 1}. Error: ${err.message}`);
+            retries -= 1;
+            await new Promise(res => setTimeout(res, 5000));
+        }
     }
 };
 
