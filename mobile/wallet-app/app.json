@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Zeqium Wallet",
+    "slug": "zeqium-wallet",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "zeqium",
+    "userInterfaceStyle": "dark",
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Zeqium necesita la cámara para escanear códigos QR de credenciales."
+        }
+      ],
+      "expo-secure-store",
+      "expo-sqlite"
+    ],
+    "android": {
+      "package": "com.zeqiumwallet",
+      "adaptiveIcon": {
+        "backgroundColor": "#0D1B2A"
+      },
+      "permissions": [
+        "CAMERA",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ]
+    },
+    "ios": {
+      "bundleIdentifier": "com.zeqiumwallet",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Zeqium necesita la cámara para escanear códigos QR de credenciales."
+      }
+    }
+  }
+}

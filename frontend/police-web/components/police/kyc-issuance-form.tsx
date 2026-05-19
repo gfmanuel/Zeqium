@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Field, FieldLabel, FieldGroup, FieldDescription } from "@/components/ui/field"
-import { FileKey2, Hash, CheckCircle2, Loader2, AlertCircle, Copy, Check } from "lucide-react"
+import { FileKey2, Hash, CheckCircle2, Loader2, AlertCircle, Copy, Check, QrCode } from "lucide-react"
+import { QRCodeSVG } from "qrcode.react"
 import { getAuthRequest, issueCredential } from "@/lib/api"
 
 interface FormData {
@@ -30,6 +31,7 @@ export function KycIssuanceForm() {
   const [sdJwt, setSdJwt] = useState("")
   const [error, setError] = useState("")
   const [copied, setCopied] = useState(false)
+  const [copiedJwt, setCopiedJwt] = useState(false)
 
   const handleInputChange = (field: keyof FormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -80,6 +82,12 @@ export function KycIssuanceForm() {
     navigator.clipboard.writeText(hash)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const copySdJwt = () => {
+    navigator.clipboard.writeText(sdJwt)
+    setCopiedJwt(true)
+    setTimeout(() => setCopiedJwt(false), 2000)
   }
 
   const isFormValid =
@@ -235,13 +243,39 @@ export function KycIssuanceForm() {
 
               {/* SD-JWT */}
               <div className="rounded-lg bg-white p-4 dark:bg-slate-800">
-                <span className="mb-2 flex items-center gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-                  <FileKey2 className="h-3 w-3" />
-                  SD-JWT (Credencial Firmada)
-                </span>
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="flex items-center gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                    <FileKey2 className="h-3 w-3" />
+                    SD-JWT (Credencial Firmada)
+                  </span>
+                  <Button variant="ghost" size="sm" onClick={copySdJwt} className="h-7 px-2 text-xs">
+                    {copiedJwt ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                  </Button>
+                </div>
                 <code className="block max-h-24 overflow-auto break-all rounded bg-slate-100 p-2 font-mono text-xs text-slate-700 dark:bg-slate-900 dark:text-slate-300">
                   {sdJwt}
                 </code>
+              </div>
+
+              {/* QR para Wallet App */}
+              <div className="rounded-lg bg-white p-4 dark:bg-slate-800">
+                <span className="mb-3 flex items-center gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                  <QrCode className="h-3 w-3" />
+                  Código QR — Entrega a la Wallet
+                </span>
+                <p className="mb-4 text-xs text-slate-600 dark:text-slate-400">
+                  El ciudadano puede escanear este código con la app Zeqium Wallet para guardar la credencial.
+                  También puede copiar el SD-JWT de arriba para importación manual.
+                </p>
+                <div className="flex justify-center rounded-lg bg-white p-4 dark:bg-slate-900">
+                  <QRCodeSVG
+                    value={sdJwt}
+                    size={240}
+                    level="L"
+                    includeMargin
+                    className="rounded"
+                  />
+                </div>
               </div>
             </div>
           </div>

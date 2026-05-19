@@ -48,14 +48,9 @@ class IssuerService {
             nacionalidad: userData.nacionalidad
         };
 
-        // El disclosureFrame indica qué campos pueden ser ocultados por el usuario
-        // Al ponerlos a true, permitimos la divulgación selectiva total
+        // Campos divulgables (formato _sd de @sd-jwt; no usar `true` por campo)
         const disclosureFrame = {
-            given_name: true,
-            family_name: true,
-            birth_date: true,
-            national_id: true,
-            nacionalidad: true
+            _sd: ['given_name', 'family_name', 'birth_date', 'national_id', 'nacionalidad']
         };
 
         const encoded = await this.sdjwt.issue(claims, disclosureFrame);

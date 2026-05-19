@@ -215,7 +215,7 @@ export function SchemaManagement() {
                         </div>
                     )}
 
-                    {queryResult && (
+                    {queryResult !== null && (
                         <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800">
                             <div className="mb-2">
                                 <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
