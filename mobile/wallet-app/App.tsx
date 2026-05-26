@@ -16,6 +16,7 @@ import { colors } from './src/theme';
 // Screens
 import { HomeScreen } from './src/screens/HomeScreen';
 import { ScannerScreen } from './src/screens/ScannerScreen';
+import { HotelCheckinScreen } from './src/screens/HotelCheckinScreen';
 import { CredentialDetailScreen } from './src/screens/CredentialDetailScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 
@@ -59,6 +60,7 @@ export default function App() {
                 <Stack.Navigator screenOptions={{ headerShown: false }}>
                     <Stack.Screen name="Home" component={HomeScreen} />
                     <Stack.Screen name="Scanner" component={ScannerScreen} />
+                    <Stack.Screen name="HotelCheckin" component={HotelCheckinScreen} />
                     <Stack.Screen name="CredentialDetail" component={CredentialDetailScreen} />
                     <Stack.Screen name="Settings" component={SettingsScreen} />
                 </Stack.Navigator>

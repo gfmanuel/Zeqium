@@ -73,7 +73,8 @@ export function HomeScreen({ navigation }: any) {
                     </View>
                     <Text style={styles.emptyTitle}>No tienes credenciales</Text>
                     <Text style={styles.emptyDesc}>
-                        Escanea el código QR generado por la policía{'\n'}para añadir tu DNI digital a la wallet.
+                        Escanea el QR de la policía para añadir tu DNI{'\n'}
+                        o el QR del hotel para hacer check-in.
                     </Text>
                     <TouchableOpacity
                         style={styles.emptyButton}

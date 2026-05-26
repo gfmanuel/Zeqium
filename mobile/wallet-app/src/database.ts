@@ -75,7 +75,11 @@ export async function deleteAllCredentials(): Promise<void> {
 function decodeBase64Url(b64: string): string {
     const padded = b64.replace(/-/g, '+').replace(/_/g, '/');
     const pad = padded.length % 4 === 0 ? '' : '='.repeat(4 - (padded.length % 4));
-    return atob(padded + pad);
+    const binary = atob(padded + pad);
+    // atob() returns Latin-1; re-decode as UTF-8 to support ñ, tildes, etc.
+    return decodeURIComponent(
+        binary.split('').map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')
+    );
 }
 
 /** Convierte un claim a string legible (evita mostrar {0:M, 1:a...} de strings mal empaquetados). */

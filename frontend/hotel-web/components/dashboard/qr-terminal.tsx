@@ -1,10 +1,12 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
-import { Loader2, CheckCircle2, XCircle, ScanLine, RefreshCw, QrCode } from "lucide-react"
-import { getAuthRequest, type AuthRequest } from "@/lib/api"
+import { Loader2, CheckCircle2, XCircle, ScanLine, RefreshCw } from "lucide-react"
+import { QRCodeSVG } from "qrcode.react"
+import { io, type Socket } from "socket.io-client"
+import { getAuthRequest, type AuthRequest, type QRPayload } from "@/lib/api"
 
 type TerminalState = "waiting" | "connecting" | "granted" | "denied"
 
@@ -47,9 +49,12 @@ const stateConfig = {
 export function QRTerminal({ className, onCheckinSuccess }: QRTerminalProps) {
   const [state, setState] = useState<TerminalState>("waiting")
   const [authRequest, setAuthRequest] = useState<AuthRequest | null>(null)
+  const [qrPayload, setQrPayload] = useState<QRPayload | null>(null)
   const [lastCheckin, setLastCheckin] = useState<{ nombre: string; habitacion: string } | null>(null)
   const [isLoadingQR, setIsLoadingQR] = useState(true)
   const [errorMsg, setErrorMsg] = useState("")
+  const activeNonceRef = useRef<string>("")
+  const socketRef = useRef<Socket | null>(null)
 
   const loadAuthRequest = useCallback(async () => {
     setIsLoadingQR(true)
@@ -57,6 +62,8 @@ export function QRTerminal({ className, onCheckinSuccess }: QRTerminalProps) {
     try {
       const data = await getAuthRequest()
       setAuthRequest(data)
+      setQrPayload(data.qrPayload ?? null)
+      activeNonceRef.current = data.request.body.nonce
       setState("waiting")
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : "Error obteniendo nonce del hotel")
@@ -69,7 +76,25 @@ export function QRTerminal({ className, onCheckinSuccess }: QRTerminalProps) {
     loadAuthRequest()
   }, [loadAuthRequest])
 
-  // Auto-reset to waiting after 8s from granted/denied
+  useEffect(() => {
+    const socket = io({ path: "/socket.io/", transports: ["websocket", "polling"] })
+    socketRef.current = socket
+
+    socket.on("new-checkin", (payload: { nombre?: string; apellidos?: string; habitacion?: string }) => {
+      setState("granted")
+      setLastCheckin({
+        nombre: [payload.nombre, payload.apellidos].filter(Boolean).join(" ") || "Huésped",
+        habitacion: payload.habitacion || "—",
+      })
+      onCheckinSuccess?.()
+    })
+
+    return () => {
+      socket.disconnect()
+      socketRef.current = null
+    }
+  }, [onCheckinSuccess])
+
   useEffect(() => {
     if (state === "granted" || state === "denied") {
       const t = setTimeout(() => {
@@ -81,6 +106,7 @@ export function QRTerminal({ className, onCheckinSuccess }: QRTerminalProps) {
 
   const config = stateConfig[state]
   const StatusIcon = config.icon
+  const qrValue = qrPayload ? JSON.stringify(qrPayload) : ""
 
   return (
     <Card className={cn("flex flex-col", className)}>
@@ -98,7 +124,6 @@ export function QRTerminal({ className, onCheckinSuccess }: QRTerminalProps) {
         </div>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-6">
-        {/* QR Code Display Area */}
         <div
           className={cn(
             "relative mx-auto flex aspect-square w-full max-w-[280px] items-center justify-center rounded-xl border-2 transition-all duration-300",
@@ -108,18 +133,9 @@ export function QRTerminal({ className, onCheckinSuccess }: QRTerminalProps) {
         >
           {isLoadingQR ? (
             <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
-          ) : authRequest && state === "waiting" ? (
-            <div className="flex flex-col items-center gap-4 p-4 text-center">
-              <QrCode className="h-16 w-16 text-foreground/70" />
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Presentation Request</p>
-                <p className="mt-1 font-mono text-[10px] break-all text-muted-foreground">
-                  nonce: {authRequest.request.body.nonce.substring(0, 16)}...
-                </p>
-                <p className="mt-0.5 text-[10px] text-muted-foreground">
-                  Schema: {authRequest.request.body.requirements[0]?.schema}
-                </p>
-              </div>
+          ) : state === "waiting" && qrValue ? (
+            <div className="rounded-lg bg-white p-3 dark:bg-slate-900">
+              <QRCodeSVG value={qrValue} size={220} level="L" includeMargin />
             </div>
           ) : (
             <StatusIcon
@@ -128,11 +144,10 @@ export function QRTerminal({ className, onCheckinSuccess }: QRTerminalProps) {
           )}
 
           {state === "waiting" && !isLoadingQR && (
-            <div className="absolute inset-x-4 top-1/2 h-0.5 -translate-y-1/2 animate-pulse bg-primary/30" />
+            <div className="absolute inset-x-4 top-1/2 h-0.5 -translate-y-1/2 animate-pulse bg-primary/30 pointer-events-none" />
           )}
         </div>
 
-        {/* Status Indicator */}
         <div
           className={cn(
             "flex items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-medium transition-all",
@@ -144,12 +159,10 @@ export function QRTerminal({ className, onCheckinSuccess }: QRTerminalProps) {
           <span>{config.label}</span>
         </div>
 
-        {/* Error */}
         {errorMsg && (
           <p className="text-center text-xs text-destructive">{errorMsg}</p>
         )}
 
-        {/* Last checkin result */}
         {lastCheckin && state === "granted" && (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-center dark:border-emerald-800 dark:bg-emerald-950/50">
             <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
@@ -161,30 +174,23 @@ export function QRTerminal({ className, onCheckinSuccess }: QRTerminalProps) {
           </div>
         )}
 
-        {/* Instructions */}
         {state === "waiting" && !isLoadingQR && authRequest && (
           <div className="mt-auto rounded-lg bg-muted/50 p-3 text-center">
             <p className="text-xs text-muted-foreground">
-              El ciudadano debe presentar su DNI digital desde la Wallet App.
-              El check-in se procesa automáticamente.
+              El ciudadano escanea este QR con Zeqium Wallet, elige qué datos compartir
+              y el check-in se procesa automáticamente.
             </p>
-            <p className="mt-1 text-[10px] font-mono text-muted-foreground/70">
-              Goal: {authRequest.request.body.goal_code}
+            <p className="mt-2 text-[10px] font-mono text-muted-foreground/70">
+              nonce: {authRequest.request.body.nonce.substring(0, 16)}...
+            </p>
+            <p className="mt-0.5 text-[10px] text-muted-foreground/70">
+              Datos mínimos: nombre, apellidos, DNI y fecha de nacimiento
             </p>
           </div>
         )}
-
-        {/* Expose state setter and authRequest for parent — via prop callbacks */}
-        <div className="hidden" id="qr-terminal-state-api"
-          data-state={state}
-          data-nonce={authRequest?.request.body.nonce || ""}
-          data-set-state=""
-        />
       </CardContent>
     </Card>
   )
 }
 
-// Export types for parent usage
 export type { TerminalState }
-export { stateConfig }

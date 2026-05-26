@@ -25,14 +25,28 @@ const PORT = process.env.PORT || 3001;
 
 // --- INICIALIZACIÓN DE IDENTIDAD ---
 let HOTEL_PRIVATE_KEY;
+let HOTEL_PUBLIC_KEY;
 try {
     if (!process.env.HOTEL_PRIVATE_KEY_JWK) throw new Error("Falta la clave privada en el .env");
     HOTEL_PRIVATE_KEY = JSON.parse(process.env.HOTEL_PRIVATE_KEY_JWK);
+    HOTEL_PUBLIC_KEY = {
+        kty: HOTEL_PRIVATE_KEY.kty,
+        crv: HOTEL_PRIVATE_KEY.crv,
+        x: HOTEL_PRIVATE_KEY.x
+    };
     console.log(`🔐 Identidad del hotel cargada de forma segura: ${process.env.HOTEL_DID}`);
 } catch (err) {
     console.error("❌ Error: Verifica tu archivo .env. " + err.message);
     process.exit(1);
 }
+
+const CHECKIN_REQUIRED_CLAIMS = [
+    { key: 'given_name', label: 'Nombre', required: true },
+    { key: 'family_name', label: 'Apellidos', required: true },
+    { key: 'national_id', label: 'Número DNI', required: true },
+    { key: 'birth_date', label: 'Fecha de nacimiento', required: true },
+    { key: 'nacionalidad', label: 'Nacionalidad', required: false }
+];
 
 app.use(express.json());
 
@@ -89,10 +103,30 @@ app.get('/api/hotel/auth-request', async (req, res) => {
             }
         };
 
-        res.json({ success: true, request: presentationRequest });
+        const qrPayload = {
+            type: 'zeqium:presentation-request',
+            v: 1,
+            checkinPath: '/api/hotel/hotel/checkin',
+            request: presentationRequest,
+            requestedClaims: CHECKIN_REQUIRED_CLAIMS,
+            hotelPublicKey: HOTEL_PUBLIC_KEY,
+            hotelDid: process.env.HOTEL_DID
+        };
+
+        res.json({
+            success: true,
+            request: presentationRequest,
+            requestedClaims: CHECKIN_REQUIRED_CLAIMS,
+            hotelPublicKey: HOTEL_PUBLIC_KEY,
+            qrPayload
+        });
     } catch (err) {
         res.status(500).json({ error: "Error 503: Servicio temporalmente no disponible" });
     }
+});
+
+app.get('/api/hotel/public-key', (_req, res) => {
+    res.json({ success: true, did: process.env.HOTEL_DID, publicKey: HOTEL_PUBLIC_KEY });
 });
 
 app.post('/api/hotel/checkin', async (req, res) => {

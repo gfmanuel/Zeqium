@@ -1,8 +1,7 @@
 /**
  * Zeqium Wallet — ScannerScreen
  *
- * Escanea QR con la credencial SD-JWT emitida por la policía.
- * Parsea el JWT, extrae los claims y los almacena en SQLite.
+ * Escanea QR de credencial (policía) o solicitud de check-in (hotel).
  */
 
 import React, { useState } from 'react';
@@ -13,6 +12,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing, font, radius } from '../theme';
 import { parseSDJWT, claimToString, saveCredential, type Credential } from '../database';
+import { parsePresentationQR } from '../services/sdjwtPresentation';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCAN_AREA = SCREEN_WIDTH * 0.7;
@@ -22,6 +22,11 @@ export function ScannerScreen({ navigation }: any) {
     const [scanned, setScanned] = useState(false);
     const [processing, setProcessing] = useState(false);
 
+    const resetScan = () => {
+        setScanned(false);
+        setProcessing(false);
+    };
+
     const handleBarCodeScanned = async (result: { data: string }) => {
         if (scanned || processing) return;
         setScanned(true);
@@ -30,17 +35,21 @@ export function ScannerScreen({ navigation }: any) {
         try {
             const data = result.data.trim();
 
-            // Verificar que parece un JWT (empieza con eyJ)
+            const presentationRequest = parsePresentationQR(data);
+            if (presentationRequest) {
+                navigation.replace('HotelCheckin', { qrPayload: presentationRequest });
+                return;
+            }
+
             if (!data.includes('eyJ')) {
                 Alert.alert(
                     'QR no válido',
-                    'El código QR no contiene una credencial válida.',
-                    [{ text: 'Reintentar', onPress: () => { setScanned(false); setProcessing(false); } }]
+                    'Escanea un QR de credencial (policía) o de check-in (hotel).',
+                    [{ text: 'Reintentar', onPress: resetScan }]
                 );
                 return;
             }
 
-            // Parsear SD-JWT
             const claims = parseSDJWT(data);
             const id = `cred_${Date.now()}`;
 
@@ -60,20 +69,19 @@ export function ScannerScreen({ navigation }: any) {
             await saveCredential(credential);
 
             Alert.alert(
-                '✅ Credencial recibida',
+                'Credencial recibida',
                 `Se ha almacenado la credencial de ${credential.given_name} ${credential.family_name}`,
                 [{ text: 'Ver credencial', onPress: () => navigation.replace('CredentialDetail', { id }) }]
             );
-        } catch (err) {
+        } catch {
             Alert.alert(
                 'Error',
-                'No se pudo procesar la credencial.',
-                [{ text: 'Reintentar', onPress: () => { setScanned(false); setProcessing(false); } }]
+                'No se pudo procesar el código QR.',
+                [{ text: 'Reintentar', onPress: resetScan }]
             );
         }
     };
 
-    // Permission loading
     if (!permission) {
         return (
             <View style={styles.container}>
@@ -82,7 +90,6 @@ export function ScannerScreen({ navigation }: any) {
         );
     }
 
-    // Permission not granted
     if (!permission.granted) {
         return (
             <View style={styles.container}>
@@ -92,7 +99,7 @@ export function ScannerScreen({ navigation }: any) {
                     </View>
                     <Text style={styles.permTitle}>Acceso a la cámara</Text>
                     <Text style={styles.permDesc}>
-                        Necesitamos acceso a la cámara para escanear el código QR de tu credencial.
+                        Necesitamos acceso a la cámara para escanear códigos QR.
                     </Text>
                     <TouchableOpacity style={styles.permBtn} onPress={requestPermission}>
                         <Text style={styles.permBtnText}>Permitir acceso</Text>
@@ -107,7 +114,6 @@ export function ScannerScreen({ navigation }: any) {
 
     return (
         <View style={styles.container}>
-            {/* Camera */}
             <CameraView
                 style={StyleSheet.absoluteFill}
                 facing="back"
@@ -115,21 +121,15 @@ export function ScannerScreen({ navigation }: any) {
                 onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
             />
 
-            {/* Overlay */}
             <View style={styles.overlay}>
-                {/* Top bar */}
                 <View style={styles.topBar}>
-                    <TouchableOpacity
-                        style={styles.backBtn}
-                        onPress={() => navigation.goBack()}
-                    >
+                    <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
                         <MaterialCommunityIcons name="arrow-left" size={22} color={colors.white} />
                     </TouchableOpacity>
-                    <Text style={styles.topTitle}>Escanear credencial</Text>
+                    <Text style={styles.topTitle}>Escanear QR</Text>
                     <View style={{ width: 40 }} />
                 </View>
 
-                {/* Scan area */}
                 <View style={styles.scanCenter}>
                     <View style={styles.scanArea}>
                         <View style={[styles.corner, styles.tl]} />
@@ -139,13 +139,12 @@ export function ScannerScreen({ navigation }: any) {
                     </View>
                 </View>
 
-                {/* Bottom */}
                 <View style={styles.bottom}>
                     <Text style={styles.instruction}>
-                        Apunta la cámara al código QR{'\n'}generado en la web de la Policía
+                        Policía: QR de credencial{'\n'}Hotel: QR de check-in
                     </Text>
                     {processing && (
-                        <Text style={styles.processingText}>Procesando credencial...</Text>
+                        <Text style={styles.processingText}>Procesando...</Text>
                     )}
                 </View>
             </View>
@@ -154,122 +153,36 @@ export function ScannerScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: colors.black,
-    },
-    loadingText: {
-        color: colors.textMuted,
-        textAlign: 'center',
-        marginTop: '50%',
-        fontSize: font.base,
-    },
-    overlay: {
-        ...StyleSheet.absoluteFillObject,
-        justifyContent: 'space-between',
-    },
+    container: { flex: 1, backgroundColor: colors.black },
+    loadingText: { color: colors.textMuted, textAlign: 'center', marginTop: '50%', fontSize: font.base },
+    overlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'space-between' },
     topBar: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingTop: spacing['4xl'] + spacing.sm,
-        paddingHorizontal: spacing.base,
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        paddingTop: spacing['4xl'] + spacing.sm, paddingHorizontal: spacing.base,
     },
     backBtn: {
-        width: 40,
-        height: 40,
-        borderRadius: radius.md,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        alignItems: 'center',
-        justifyContent: 'center',
+        width: 40, height: 40, borderRadius: radius.md,
+        backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center',
     },
-    topTitle: {
-        fontSize: font.md,
-        fontWeight: '600',
-        color: colors.white,
-    },
-    scanCenter: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    scanArea: {
-        width: SCAN_AREA,
-        height: SCAN_AREA,
-    },
-    corner: {
-        position: 'absolute',
-        width: 36,
-        height: 36,
-        borderColor: colors.primary,
-        borderWidth: 3,
-    },
+    topTitle: { fontSize: font.md, fontWeight: '600', color: colors.white },
+    scanCenter: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    scanArea: { width: SCAN_AREA, height: SCAN_AREA },
+    corner: { position: 'absolute', width: 36, height: 36, borderColor: colors.primary, borderWidth: 3 },
     tl: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius: 10 },
     tr: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0, borderTopRightRadius: 10 },
     bl: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 10 },
     br: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 10 },
-    bottom: {
-        alignItems: 'center',
-        paddingBottom: spacing['4xl'],
-        paddingHorizontal: spacing.xl,
-    },
-    instruction: {
-        fontSize: font.base,
-        color: colors.white,
-        textAlign: 'center',
-        lineHeight: font.base * 1.6,
-        opacity: 0.85,
-    },
-    processingText: {
-        fontSize: font.sm,
-        color: colors.primary,
-        marginTop: spacing.md,
-        fontWeight: '500',
-    },
-    // Permission screen
-    permissionBox: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: spacing['2xl'],
-    },
+    bottom: { alignItems: 'center', paddingBottom: spacing['4xl'], paddingHorizontal: spacing.xl },
+    instruction: { fontSize: font.base, color: colors.white, textAlign: 'center', lineHeight: font.base * 1.6, opacity: 0.85 },
+    processingText: { fontSize: font.sm, color: colors.primary, marginTop: spacing.md, fontWeight: '500' },
+    permissionBox: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing['2xl'] },
     permIcon: {
-        width: 88,
-        height: 88,
-        borderRadius: radius.xl,
-        backgroundColor: colors.bgElevated,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: spacing.xl,
+        width: 88, height: 88, borderRadius: radius.xl, backgroundColor: colors.bgElevated,
+        alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xl,
     },
-    permTitle: {
-        fontSize: font.lg,
-        fontWeight: '600',
-        color: colors.text,
-        marginBottom: spacing.sm,
-    },
-    permDesc: {
-        fontSize: font.base,
-        color: colors.textSecondary,
-        textAlign: 'center',
-        lineHeight: font.base * 1.6,
-        marginBottom: spacing.xl,
-    },
-    permBtn: {
-        backgroundColor: colors.primary,
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.md,
-        borderRadius: radius.lg,
-        marginBottom: spacing.md,
-    },
-    permBtnText: {
-        fontSize: font.base,
-        fontWeight: '600',
-        color: colors.white,
-    },
-    backLink: {
-        fontSize: font.sm,
-        color: colors.textMuted,
-        marginTop: spacing.sm,
-    },
+    permTitle: { fontSize: font.lg, fontWeight: '600', color: colors.text, marginBottom: spacing.sm },
+    permDesc: { fontSize: font.base, color: colors.textSecondary, textAlign: 'center', lineHeight: font.base * 1.6, marginBottom: spacing.xl },
+    permBtn: { backgroundColor: colors.primary, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderRadius: radius.lg, marginBottom: spacing.md },
+    permBtnText: { fontSize: font.base, fontWeight: '600', color: colors.white },
+    backLink: { fontSize: font.sm, color: colors.textMuted, marginTop: spacing.sm },
 });

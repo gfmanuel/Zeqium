@@ -69,15 +69,37 @@ export function logout() {
 }
 
 // ─── Check-in flow ──────────────────────────────────────
+export interface RequestedClaim {
+    key: string
+    label: string
+    required: boolean
+}
+
 export interface AuthRequest {
+    success?: boolean
     request: {
         type: string
+        id?: string
+        from?: string
         body: {
             nonce: string
             goal_code: string
-            requirements: { schema: string }[]
+            requirements: { schema: string; constraints?: unknown }[]
         }
     }
+    requestedClaims?: RequestedClaim[]
+    hotelPublicKey?: Record<string, string>
+    qrPayload?: QRPayload
+}
+
+export interface QRPayload {
+    type: 'zeqium:presentation-request'
+    v: number
+    checkinPath: string
+    request: AuthRequest['request']
+    requestedClaims: RequestedClaim[]
+    hotelPublicKey: Record<string, string>
+    hotelDid: string
 }
 
 export async function getAuthRequest(): Promise<AuthRequest> {
