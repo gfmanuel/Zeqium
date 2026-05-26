@@ -58,7 +58,7 @@ io.on('connection', (socket) => {
 // ==========================================
 // 1. AUTENTICACIÓN
 // ==========================================
-app.post('/api/hotel/auth/login', (req, res) => {
+app.post('/api/auth/login', (req, res) => {
     const { user, pass } = req.body;
     if (user === process.env.HOTEL_ADMIN_USER && pass === process.env.HOTEL_ADMIN_PASS) {
         const token = jwt.sign(
@@ -74,7 +74,7 @@ app.post('/api/hotel/auth/login', (req, res) => {
 // 2. FLUJO DE VERIFICACIÓN (SSI / DIDComm)
 // ==========================================
 
-app.get('/api/hotel/auth-request', async (req, res) => {
+app.get('/api/auth-request', async (req, res) => {
     try {
         const nonce = crypto.randomBytes(16).toString('hex');
         await saveNonce(nonce, 60); // Caducidad de 60s [cite: 232]
@@ -125,11 +125,11 @@ app.get('/api/hotel/auth-request', async (req, res) => {
     }
 });
 
-app.get('/api/hotel/public-key', (_req, res) => {
+app.get('/api/public-key', (_req, res) => {
     res.json({ success: true, did: process.env.HOTEL_DID, publicKey: HOTEL_PUBLIC_KEY });
 });
 
-app.post('/api/hotel/checkin', async (req, res) => {
+app.post('/api/checkin', async (req, res) => {
     const { jwe, nonce } = req.body;
     const timestamp = new Date().toISOString();
 
@@ -219,7 +219,7 @@ app.post('/api/hotel/checkin', async (req, res) => {
 // ==========================================
 // 3. GESTIÓN OPERATIVA
 // ==========================================
-app.get('/api/hotel/guests/active', authMiddleware(ROLES.HOTEL_RECEPTIONIST), async (req, res) => {
+app.get('/api/guests/active', authMiddleware(ROLES.HOTEL_RECEPTIONIST), async (req, res) => {
     try {
         const result = await pool.query("SELECT * FROM stays WHERE estado = 'Checked-in' ORDER BY fecha_entrada DESC");
         res.json({ success: true, guests: result.rows });
@@ -231,7 +231,7 @@ app.get('/api/hotel/guests/active', authMiddleware(ROLES.HOTEL_RECEPTIONIST), as
 // ==========================================
 // 4. AUDITORÍA Y TRAZABILIDAD
 // ==========================================
-app.get('/api/hotel/audit/logs', authMiddleware(ROLES.HOTEL_RECEPTIONIST), async (req, res) => {
+app.get('/api/audit/logs', authMiddleware(ROLES.HOTEL_RECEPTIONIST), async (req, res) => {
     try {
         const result = await pool.query("SELECT * FROM stays ORDER BY fecha_entrada DESC");
         res.json({ success: true, logs: result.rows });
@@ -240,7 +240,7 @@ app.get('/api/hotel/audit/logs', authMiddleware(ROLES.HOTEL_RECEPTIONIST), async
     }
 });
 
-app.get('/api/hotel/audit/ledger', authMiddleware(ROLES.HOTEL_RECEPTIONIST), async (req, res) => {
+app.get('/api/audit/ledger', authMiddleware(ROLES.HOTEL_RECEPTIONIST), async (req, res) => {
     try {
         const ledgerData = await evaluateTransaction('GetAuditLogs', process.env.HOTEL_DID);
         res.json({ success: true, ledger: ledgerData });
@@ -249,7 +249,7 @@ app.get('/api/hotel/audit/ledger', authMiddleware(ROLES.HOTEL_RECEPTIONIST), asy
     }
 });
 
-app.get('/api/hotel/audit/export', authMiddleware(ROLES.HOTEL_RECEPTIONIST), async (req, res) => {
+app.get('/api/audit/export', authMiddleware(ROLES.HOTEL_RECEPTIONIST), async (req, res) => {
     try {
         const result = await pool.query("SELECT did_huesped, nombre, apellidos, habitacion, fecha_entrada, estado, credential_hash FROM stays ORDER BY fecha_entrada DESC");
         const fields = ['DID Huesped', 'Nombre', 'Apellidos', 'Habitacion', 'Entrada', 'Estado', 'Hash Verificado'];
