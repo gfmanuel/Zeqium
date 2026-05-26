@@ -2,13 +2,14 @@
 
 import { useState, useCallback, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { Loader2, CheckCircle2, XCircle, ScanLine, RefreshCw } from "lucide-react"
+import { Loader2, CheckCircle2, XCircle, ScanLine, Play, Clock, Info } from "lucide-react"
 import { QRCodeSVG } from "qrcode.react"
 import { io, type Socket } from "socket.io-client"
 import { getAuthRequest, type AuthRequest, type QRPayload } from "@/lib/api"
 
-type TerminalState = "waiting" | "connecting" | "granted" | "denied"
+type TerminalState = "idle" | "waiting" | "connecting" | "granted" | "denied"
 
 interface QRTerminalProps {
   className?: string
@@ -16,12 +17,19 @@ interface QRTerminalProps {
 }
 
 const stateConfig = {
-  waiting: {
-    label: "Esperando escaneo del ciudadano...",
+  idle: {
+    label: "Recepción lista",
     icon: ScanLine,
-    borderColor: "border-muted-foreground/30",
+    borderColor: "border-muted-foreground/20",
     textColor: "text-muted-foreground",
-    bgColor: "bg-muted/50",
+    bgColor: "bg-muted/10",
+  },
+  waiting: {
+    label: "Esperando escaneo...",
+    icon: Clock,
+    borderColor: "border-indigo-400",
+    textColor: "text-indigo-600 dark:text-indigo-400",
+    bgColor: "bg-indigo-50 dark:bg-indigo-950/30",
   },
   connecting: {
     label: "Procesando credencial...",
@@ -31,14 +39,14 @@ const stateConfig = {
     bgColor: "bg-amber-50 dark:bg-amber-950/30",
   },
   granted: {
-    label: "¡Acceso concedido! Firma criptográfica válida.",
+    label: "Check-in completado con éxito.",
     icon: CheckCircle2,
     borderColor: "border-emerald-500",
     textColor: "text-emerald-600 dark:text-emerald-400",
     bgColor: "bg-emerald-50 dark:bg-emerald-950/30",
   },
   denied: {
-    label: "Acceso denegado. Credencial inválida o revocada.",
+    label: "Acceso denegado. Credencial inválida.",
     icon: XCircle,
     borderColor: "border-destructive",
     textColor: "text-destructive",
@@ -47,34 +55,34 @@ const stateConfig = {
 }
 
 export function QRTerminal({ className, onCheckinSuccess }: QRTerminalProps) {
-  const [state, setState] = useState<TerminalState>("waiting")
+  const [state, setState] = useState<TerminalState>("idle")
   const [authRequest, setAuthRequest] = useState<AuthRequest | null>(null)
   const [qrPayload, setQrPayload] = useState<QRPayload | null>(null)
   const [lastCheckin, setLastCheckin] = useState<{ nombre: string; habitacion: string } | null>(null)
-  const [isLoadingQR, setIsLoadingQR] = useState(true)
+  const [isLoadingQR, setIsLoadingQR] = useState(false)
   const [errorMsg, setErrorMsg] = useState("")
+  const [timeLeft, setTimeLeft] = useState(0)
   const activeNonceRef = useRef<string>("")
   const socketRef = useRef<Socket | null>(null)
 
-  const loadAuthRequest = useCallback(async () => {
+  const handleStartCheckin = useCallback(async () => {
     setIsLoadingQR(true)
     setErrorMsg("")
+    setState("connecting")
     try {
       const data = await getAuthRequest()
       setAuthRequest(data)
       setQrPayload(data.qrPayload ?? null)
       activeNonceRef.current = data.request.body.nonce
       setState("waiting")
+      setTimeLeft(60) // 60 segundos de validez
     } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : "Error obteniendo nonce del hotel")
+      setErrorMsg(err instanceof Error ? err.message : "Error iniciando check-in")
+      setState("idle")
     } finally {
       setIsLoadingQR(false)
     }
   }, [])
-
-  useEffect(() => {
-    loadAuthRequest()
-  }, [loadAuthRequest])
 
   useEffect(() => {
     const socket = io({ path: "/socket.io/", transports: ["websocket", "polling"] })
@@ -95,14 +103,31 @@ export function QRTerminal({ className, onCheckinSuccess }: QRTerminalProps) {
     }
   }, [onCheckinSuccess])
 
+  // Temporizador para el QR
+  useEffect(() => {
+    let timer: NodeJS.Timeout
+    if (state === "waiting" && timeLeft > 0) {
+      timer = setInterval(() => {
+        setTimeLeft((prev) => prev - 1)
+      }, 1000)
+    } else if (state === "waiting" && timeLeft === 0) {
+      setState("idle")
+      setQrPayload(null)
+      setErrorMsg("El tiempo para escanear ha caducado. Vuelve a iniciar el proceso.")
+    }
+    return () => clearInterval(timer)
+  }, [state, timeLeft])
+
+  // Reset a idle tras unos segundos de error o exito
   useEffect(() => {
     if (state === "granted" || state === "denied") {
       const t = setTimeout(() => {
-        loadAuthRequest()
+        setState("idle")
+        setQrPayload(null)
       }, 8000)
       return () => clearTimeout(t)
     }
-  }, [state, loadAuthRequest])
+  }, [state])
 
   const config = stateConfig[state]
   const StatusIcon = config.icon
@@ -112,81 +137,91 @@ export function QRTerminal({ className, onCheckinSuccess }: QRTerminalProps) {
     <Card className={cn("flex flex-col", className)}>
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-lg font-semibold">Terminal de Acceso Seguro</CardTitle>
-          <button
-            onClick={loadAuthRequest}
-            disabled={isLoadingQR}
-            className="text-muted-foreground hover:text-foreground transition-colors"
-            title="Renovar nonce"
-          >
-            <RefreshCw className={cn("h-4 w-4", isLoadingQR && "animate-spin")} />
-          </button>
+          <div>
+            <CardTitle className="text-lg font-semibold">Terminal de Acceso Seguro</CardTitle>
+            <p className="text-sm text-muted-foreground">Check-in asistido sin contacto</p>
+          </div>
         </div>
       </CardHeader>
-      <CardContent className="flex flex-1 flex-col gap-6">
-        <div
-          className={cn(
-            "relative mx-auto flex aspect-square w-full max-w-[280px] items-center justify-center rounded-xl border-2 transition-all duration-300",
-            config.borderColor,
-            config.bgColor
-          )}
-        >
-          {isLoadingQR ? (
-            <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
-          ) : state === "waiting" && qrValue ? (
-            <div className="rounded-lg bg-white p-3 dark:bg-slate-900">
-              <QRCodeSVG value={qrValue} size={220} level="L" includeMargin />
+      <CardContent className="flex flex-1 flex-col justify-center gap-6">
+        {state === "idle" ? (
+          <div className="flex flex-col items-center justify-center space-y-6">
+            <div className="rounded-full bg-indigo-50 p-6 dark:bg-indigo-950/30">
+              <ScanLine className="h-16 w-16 text-indigo-500" />
             </div>
-          ) : (
-            <StatusIcon
-              className={cn("h-16 w-16", state === "connecting" && "animate-spin", config.textColor)}
-            />
-          )}
-
-          {state === "waiting" && !isLoadingQR && (
-            <div className="absolute inset-x-4 top-1/2 h-0.5 -translate-y-1/2 animate-pulse bg-primary/30 pointer-events-none" />
-          )}
-        </div>
-
-        <div
-          className={cn(
-            "flex items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-medium transition-all",
-            config.bgColor,
-            config.textColor
-          )}
-        >
-          <StatusIcon className={cn("h-5 w-5 shrink-0", state === "connecting" && "animate-spin")} />
-          <span>{config.label}</span>
-        </div>
-
-        {errorMsg && (
-          <p className="text-center text-xs text-destructive">{errorMsg}</p>
-        )}
-
-        {lastCheckin && state === "granted" && (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-center dark:border-emerald-800 dark:bg-emerald-950/50">
-            <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
-              {lastCheckin.nombre}
-            </p>
-            <p className="text-xs text-emerald-600 dark:text-emerald-400">
-              Asignada: {lastCheckin.habitacion}
-            </p>
+            <div className="text-center space-y-2 max-w-[280px]">
+              <h3 className="font-semibold text-lg">Modo Asistido</h3>
+              <p className="text-sm text-muted-foreground">Haga clic en Iniciar cuando el huésped esté listo con su Wallet.</p>
+            </div>
+            <Button size="lg" className="w-[280px]" onClick={handleStartCheckin}>
+              <Play className="mr-2 h-4 w-4" /> Iniciar Check-in Seguro
+            </Button>
+            {errorMsg && (
+              <p className="text-center text-xs text-destructive max-w-[280px] mt-2">{errorMsg}</p>
+            )}
           </div>
-        )}
+        ) : (
+          <>
+            <div
+              className={cn(
+                "relative mx-auto flex aspect-square w-full max-w-[280px] items-center justify-center rounded-xl border-2 transition-all duration-300",
+                config.borderColor,
+                config.bgColor
+              )}
+            >
+              {isLoadingQR ? (
+                <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
+              ) : state === "waiting" && qrValue ? (
+                <div className="flex flex-col items-center gap-4">
+                  <div className="rounded-lg bg-white p-3 dark:bg-slate-900 border shadow-sm">
+                    <QRCodeSVG value={qrValue} size={200} level="L" includeMargin={false} />
+                  </div>
+                  <div className="flex items-center text-sm font-semibold text-indigo-600 dark:text-indigo-400">
+                    <Clock className="mr-2 h-4 w-4" />
+                    <span>Caduca en {timeLeft}s</span>
+                  </div>
+                </div>
+              ) : (
+                <StatusIcon
+                  className={cn("h-16 w-16", state === "connecting" && "animate-spin", config.textColor)}
+                />
+              )}
+            </div>
 
-        {state === "waiting" && !isLoadingQR && authRequest && (
-          <div className="mt-auto rounded-lg bg-muted/50 p-3 text-center">
-            <p className="text-xs text-muted-foreground">
-              El ciudadano escanea este QR con Zeqium Wallet, elige qué datos compartir
-              y el check-in se procesa automáticamente.
-            </p>
-            <p className="mt-2 text-[10px] font-mono text-muted-foreground/70">
-              nonce: {authRequest.request.body.nonce.substring(0, 16)}...
-            </p>
-            <p className="mt-0.5 text-[10px] text-muted-foreground/70">
-              Datos mínimos: nombre, apellidos, DNI y fecha de nacimiento
-            </p>
-          </div>
+            <div
+              className={cn(
+                "flex items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-medium transition-all",
+                config.bgColor,
+                config.textColor
+              )}
+            >
+              <StatusIcon className={cn("h-5 w-5 shrink-0", state === "connecting" && "animate-spin")} />
+              <span>{config.label}</span>
+            </div>
+
+            {errorMsg && (
+              <p className="text-center text-xs text-destructive">{errorMsg}</p>
+            )}
+
+            {lastCheckin && state === "granted" && (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-center dark:border-emerald-800 dark:bg-emerald-950/50">
+                <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                  {lastCheckin.nombre}
+                </p>
+                <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                  Asignada: {lastCheckin.habitacion}
+                </p>
+              </div>
+            )}
+
+            {state === "waiting" && (
+              <div className="flex justify-center">
+                <Button variant="outline" size="sm" onClick={() => setState("idle")}>
+                  Cancelar
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>

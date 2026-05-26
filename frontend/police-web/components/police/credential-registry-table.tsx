@@ -166,6 +166,7 @@ export function CredentialRegistryTable({ fullWidth = false }: CredentialRegistr
               <TableHeader>
                 <TableRow className="border-slate-200 bg-slate-50 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50">
                   <TableHead className="text-slate-600 dark:text-slate-400">DID Titular</TableHead>
+                  <TableHead className="text-slate-600 dark:text-slate-400">DNI</TableHead>
                   <TableHead className="text-slate-600 dark:text-slate-400">Hash</TableHead>
                   <TableHead className="text-slate-600 dark:text-slate-400">Fecha Emisión</TableHead>
                   <TableHead className="text-slate-600 dark:text-slate-400">Estado</TableHead>
@@ -179,6 +180,9 @@ export function CredentialRegistryTable({ fullWidth = false }: CredentialRegistr
                       <span title={credential.did_holder}>
                         {truncateStr(credential.did_holder)}
                       </span>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-slate-600 dark:text-slate-300">
+                      {credential.national_id || <span className="text-slate-400 italic">N/A</span>}
                     </TableCell>
                     <TableCell className="font-mono text-xs text-slate-600 dark:text-slate-300">
                       <span title={credential.credential_hash}>
@@ -231,7 +235,7 @@ export function CredentialRegistryTable({ fullWidth = false }: CredentialRegistr
                 ))}
                 {filteredCredentials.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center text-slate-500 dark:text-slate-400">
+                    <TableCell colSpan={6} className="h-24 text-center text-slate-500 dark:text-slate-400">
                       {credentials.length === 0
                         ? "No hay credenciales emitidas aún."
                         : "No se encontraron credenciales con los filtros aplicados."}
