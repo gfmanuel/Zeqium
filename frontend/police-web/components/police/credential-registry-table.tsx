@@ -54,7 +54,8 @@ export function CredentialRegistryTable({ fullWidth = false }: CredentialRegistr
   const filteredCredentials = credentials.filter((credential) => {
     const matchesSearch =
       credential.did_holder.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      credential.credential_hash.toLowerCase().includes(searchQuery.toLowerCase())
+      credential.credential_hash.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (credential.national_id && credential.national_id.toLowerCase().includes(searchQuery.toLowerCase()))
     const estadoNormalized = credential.estado === 'ACTIVE' ? 'activa' : 'revocada'
     const matchesStatus = statusFilter === "todos" || estadoNormalized === statusFilter
 
@@ -133,7 +134,7 @@ export function CredentialRegistryTable({ fullWidth = false }: CredentialRegistr
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input
-              placeholder="Buscar por DID o hash..."
+              placeholder="Buscar por DNI, DID o hash..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="border-slate-200 bg-white pl-9 focus-visible:border-indigo-500 focus-visible:ring-indigo-500/20 dark:border-slate-700 dark:bg-slate-800"

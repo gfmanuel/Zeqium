@@ -281,8 +281,8 @@ app.post('/api/issuer/credential', authMiddleware(ROLES.POLICE_ADMIN), async (re
     // D. Anclaje y Persistencia
     await submitTransaction('PublishCredentialStatus', credentialHash, ISSUER_DID, timestamp);
     await pool.query(
-      `INSERT INTO issued_credentials (did_holder, credential_hash, estado) VALUES ($1, $2, $3)`,
-      [holderDID, credentialHash, 'ACTIVE']
+      `INSERT INTO issued_credentials (did_holder, credential_hash, estado, national_id) VALUES ($1, $2, $3, $4)`,
+      [holderDID, credentialHash, 'ACTIVE', mappedData.dni]
     );
 
     res.json({
@@ -335,7 +335,7 @@ app.get('/api/issuer/audit/log', authMiddleware(ROLES.POLICE_ADMIN), async (req,
 
 app.get('/api/issuer/audit/export', authMiddleware(ROLES.POLICE_ADMIN), async (req, res) => {
   try {
-    const result = await pool.query("SELECT did_holder, credential_hash, estado, fecha_emision, fecha_revocacion FROM issued_credentials ORDER BY fecha_emision DESC");
+    const result = await pool.query("SELECT did_holder, credential_hash, estado, fecha_emision, fecha_revocacion, national_id FROM issued_credentials ORDER BY fecha_emision DESC");
     const fields = ['DID Titular', 'Hash Credencial', 'Estado', 'Fecha Emision', 'Fecha Revocacion'];
     const csvRows = result.rows.map(row => `"${row.did_holder}","${row.credential_hash}","${row.estado}","${row.fecha_emision}","${row.fecha_revocacion || 'N/A'}"`);
 

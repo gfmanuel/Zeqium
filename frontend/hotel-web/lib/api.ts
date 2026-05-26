@@ -103,7 +103,7 @@ export interface QRPayload {
 }
 
 export async function getAuthRequest(): Promise<AuthRequest> {
-    return get<AuthRequest>('/hotel/auth-request')
+    return get<AuthRequest>('/auth-request')
 }
 
 export interface CheckinResult {
@@ -117,7 +117,7 @@ export interface CheckinResult {
 }
 
 export async function checkin(jwe: string, nonce: string): Promise<CheckinResult> {
-    return post<CheckinResult>('/hotel/checkin', { jwe, nonce })
+    return post<CheckinResult>('/checkin', { jwe, nonce })
 }
 
 // ─── Guests ─────────────────────────────────────────────
@@ -133,7 +133,7 @@ export interface Guest {
 }
 
 export async function getActiveGuests() {
-    return get<{ guests: Guest[] }>('/hotel/guests/active', true)
+    return get<{ guests: Guest[] }>('/guests/active', true)
 }
 
 // ─── Auditoría ──────────────────────────────────────────
@@ -149,13 +149,13 @@ export interface StayLog {
 }
 
 export async function getAuditLogs() {
-    return get<{ logs: StayLog[] }>('/hotel/audit/logs', true)
+    return get<{ logs: StayLog[] }>('/audit/logs', true)
 }
 
 export async function getAuditLedger() {
-    return get<{ ledger: unknown[] }>('/hotel/audit/ledger', true)
+    return get<{ ledger: unknown[] }>('/audit/ledger', true)
 }
 
 export async function exportStaysCSV() {
-    return get<{ csv: string }>('/hotel/audit/export', true)
+    return get<{ csv: string }>('/audit/export', true)
 }

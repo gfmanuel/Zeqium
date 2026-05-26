@@ -147,6 +147,7 @@ export interface CredentialHistoryItem {
     estado: string
     fecha_emision: string
     fecha_revocacion: string | null
+    national_id?: string
 }
 
 export async function getHistory() {

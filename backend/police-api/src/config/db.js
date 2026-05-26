@@ -16,8 +16,10 @@ const initDB = async () => {
             credential_hash VARCHAR(255) UNIQUE NOT NULL,
             fecha_emision TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             fecha_revocacion TIMESTAMP,
-            estado VARCHAR(50) DEFAULT 'ACTIVE'
+            estado VARCHAR(50) DEFAULT 'ACTIVE',
+            national_id VARCHAR(50)
         );
+        ALTER TABLE issued_credentials ADD COLUMN IF NOT EXISTS national_id VARCHAR(50);
     `;
     let retries = 5;
     while (retries) {

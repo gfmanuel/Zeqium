@@ -58,7 +58,7 @@ io.on('connection', (socket) => {
 // ==========================================
 // 1. AUTENTICACIÓN
 // ==========================================
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/hotel/auth/login', (req, res) => {
     const { user, pass } = req.body;
     if (user === process.env.HOTEL_ADMIN_USER && pass === process.env.HOTEL_ADMIN_PASS) {
         const token = jwt.sign(
@@ -106,7 +106,7 @@ app.get('/api/hotel/auth-request', async (req, res) => {
         const qrPayload = {
             type: 'zeqium:presentation-request',
             v: 1,
-            checkinPath: '/api/hotel/hotel/checkin',
+            checkinPath: '/api/hotel/checkin',
             request: presentationRequest,
             requestedClaims: CHECKIN_REQUIRED_CLAIMS,
             hotelPublicKey: HOTEL_PUBLIC_KEY,
