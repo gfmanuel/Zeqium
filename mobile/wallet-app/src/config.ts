@@ -3,7 +3,7 @@
  */
 
 // URL base del servidor (configurable desde Settings)
-export const DEFAULT_SERVER_URL = 'http://localhost';
+export const DEFAULT_SERVER_URL = 'http://192.168.0.23:4001';
 
 // Clave pública X25519 del Hotel (para JWE en Fase 2)
 export const HOTEL_PUBLIC_KEY_JWK = {
