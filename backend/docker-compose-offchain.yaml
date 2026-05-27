@@ -49,6 +49,8 @@ services:
     container_name: police-api
     env_file:
       - ./police-api/.env
+    ports:
+      - "3000:3000"
     volumes:
       # Inyectamos los certificados en la misma ruta exacta que dice el connection.json
       - /home/brcruz/Zeqium/blockchain/network/crypto-config:/home/brcruz/Zeqium/blockchain/network/crypto-config:ro
@@ -66,6 +68,8 @@ services:
     container_name: hotel-api
     env_file:
       - ./hotel-api/.env
+    ports:
+      - "3001:3001"
     volumes:
       # Inyectamos los certificados en la misma ruta exacta que dice el connection.json
       - /home/brcruz/Zeqium/blockchain/network/crypto-config:/home/brcruz/Zeqium/blockchain/network/crypto-config:ro
