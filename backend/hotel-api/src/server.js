@@ -134,16 +134,27 @@ app.post('/api/checkin', async (req, res) => {
     const timestamp = new Date().toISOString();
 
     try {
-        // A. Anti-Replay [cite: 247, 324]
-        const isValidNonce = await verifyAndBurnNonce(nonce);
-        if (!isValidNonce) throw new Error('Nonce inválido, caducado o ya utilizado');
+        // A. Anti-Replay
+        try {
+            const isValidNonce = await verifyAndBurnNonce(nonce);
+            if (!isValidNonce) throw new Error('El QR ha caducado o ya fue utilizado.');
+        } catch (err) {
+            throw new Error('Error validando la sesión del QR', { cause: err });
+        }
 
-        // B. Privacidad: Descifrar JWE [cite: 246]
-        //const decryptedPayload = await decryptJWE(jwe, HOTEL_PRIVATE_KEY);
+        // B y C. Criptografía: Validar firma SD-JWT
         const sdJwt = presentation;
+        if (!sdJwt) throw new Error('No se ha recibido ninguna credencial.', { cause: 'Payload vacío' });
 
-        // C. Criptografía: Validar firma SD-JWT [cite: 262]
-        const rawPayload = await verifierService.verifyPresentation(sdJwt);
+        let rawPayload;
+        try {
+            rawPayload = await verifierService.verifyPresentation(sdJwt);
+        } catch (err) {
+            // Capturamos el error criptográfico de la librería y lo adjuntamos como causa
+            throw new Error('La firma del DNI digital es inválida o está corrupta.', { cause: err });
+        }
+
+        // Extraemos la cabecera inmutable (Core JWT) para buscar en la blockchain
         const coreJwt = sdJwt.split('~')[0];
         const credentialHash = crypto.createHash('sha256').update(coreJwt).digest('hex');
 
@@ -151,9 +162,7 @@ app.post('/api/checkin', async (req, res) => {
         const normalizeClaim = (claim) => {
             if (!claim) return claim;
             if (typeof claim === 'string') return claim;
-            if (typeof claim === 'object') {
-                return Object.values(claim).join(''); // {"0":"C","1":"a"} -> "Ca"
-            }
+            if (typeof claim === 'object') return Object.values(claim).join('');
             return String(claim);
         };
 
@@ -165,55 +174,76 @@ app.post('/api/checkin', async (req, res) => {
             family_name: normalizeClaim(rawPayload.family_name)
         };
 
-        // --- VALIDACIÓN DE CONSTRAINTS (DIF PE) --- [cite: 29, 332]
+        // --- VALIDACIÓN DE CONSTRAINTS (DIF PE) ---
         const requiredFields = ['national_id', 'birth_date', 'given_name', 'family_name'];
         const missingFields = requiredFields.filter(field => !payload[field]);
 
         if (missingFields.length > 0) {
-            return res.status(400).json({
-                success: false,
-                error: `Divulgación insuficiente. Faltan campos requeridos: ${missingFields.join(', ')}`
-            });
+            throw new Error(`Divulgación insuficiente. Faltan datos: ${missingFields.join(', ')}`, { cause: 'Selective Disclosure incompleto' });
         }
 
-        // Validación de regla: Mayor de edad (2008-03-03) [cite: 85-87]
         const birthDate = new Date(payload.birth_date);
         const limitDate = new Date('2008-03-03');
         if (birthDate > limitDate) {
-            return res.status(403).json({
-                success: false,
-                error: "Acceso denegado: El usuario no cumple el requisito de mayoría de edad."
-            });
+            throw new Error("Acceso denegado: El usuario no es mayor de edad.", { cause: `Fecha de nacimiento: ${payload.birth_date}` });
         }
 
-        // D. Gobernanza: Consultar estado en Zeqium [cite: 270, 344]
-        const statusResult = await evaluateTransaction('VerifyCredentialStatus', credentialHash);
-        if (statusResult?.status !== 'ACTIVE') throw new Error('Credencial no activa o revocada');
+        // D. Gobernanza: Consultar estado en Hyperledger Fabric
+        let statusResult;
+        try {
+            statusResult = await evaluateTransaction('VerifyCredentialStatus', credentialHash);
+        } catch (err) {
+            throw new Error('No se pudo contactar con la red Blockchain para verificar el estado.', { cause: err });
+        }
 
-        // E. Negocio: Evitar múltiples check-ins [cite: 273]
-        const activeStay = await pool.query(`SELECT id FROM stays WHERE did_huesped = $1 AND estado = 'Checked-in'`, [payload.sub]);
-        if (activeStay.rowCount > 0) return res.status(400).json({ success: false, error: 'El usuario ya tiene una estancia activa.' });
+        if (statusResult?.status !== 'ACTIVE') {
+            throw new Error('El DNI digital presentado no está activo o ha sido revocado por la Policía.', { cause: `Estado actual: ${statusResult?.status}` });
+        }
 
-        // F. Trazabilidad: Registrar auditoría en Fabric [cite: 378]
-        const auditId = 'LOG_' + crypto.randomBytes(4).toString('hex');
-        await submitTransaction('LogVerificationActivity', auditId, timestamp, process.env.HOTEL_DID, credentialHash);
+        // E. Negocio: Evitar múltiples check-ins
+        try {
+            const activeStay = await pool.query(`SELECT id FROM stays WHERE did_huesped = $1 AND estado = 'Checked-in'`, [payload.sub]);
+            if (activeStay.rowCount > 0) throw new Error('El huésped ya tiene una estancia en curso.');
+        } catch (err) {
+            throw new Error('No se pudo verificar el historial de estancias.', { cause: err });
+        }
 
-        // G. Persistencia [cite: 273]
+        // F y G. Persistencia y Trazabilidad
         const habitacionAsignada = `Hab-${Math.floor(Math.random() * 100) + 100}`;
-        await pool.query(
-            `INSERT INTO stays (did_huesped, nombre, apellidos, habitacion, credential_hash) VALUES ($1, $2, $3, $4, $5)`,
-            [payload.sub, payload.given_name, payload.family_name, habitacionAsignada, credentialHash]
-        );
+        const auditId = 'LOG_' + crypto.randomBytes(4).toString('hex');
 
-        // H. Notificación [cite: 279, 314]
+        try {
+            await submitTransaction('LogVerificationActivity', auditId, timestamp, process.env.HOTEL_DID, credentialHash);
+            await pool.query(
+                `INSERT INTO stays (did_huesped, nombre, apellidos, habitacion, credential_hash) VALUES ($1, $2, $3, $4, $5)`,
+                [payload.sub, payload.given_name, payload.family_name, habitacionAsignada, credentialHash]
+            );
+        } catch (err) {
+            throw new Error('Fallo crítico al registrar el Check-in en el sistema.', { cause: err });
+        }
+
+        // H. Notificación WebSocket
         io.emit('new-checkin', {
             nombre: payload.given_name, apellidos: payload.family_name, habitacion: habitacionAsignada, hora: new Date().toLocaleTimeString(), auditId
         });
 
         res.json({ success: true, message: "¡DNI verificado!", user_checked_in: { nombre: payload.given_name, habitacion: habitacionAsignada, did: payload.sub }, auditId });
+
     } catch (err) {
-        console.error("Fallo en verificación:", err.message);
-        res.status(401).json({ error: "Fallo en la verificación: " + err.message });
+        // --- AQUÍ ESTÁ LA MAGIA DEL { cause } ---
+
+        // 1. Log detallado para ti en el servidor de Serezade
+        console.error("\n❌ [CHECK-IN FALLIDO]");
+        console.error("Motivo principal:", err.message);
+        if (err.cause) {
+            // Si la causa es un objeto Error (como un fallo de Fabric), imprimimos su mensaje real
+            console.error("↳ Causa subyacente:", err.cause instanceof Error ? err.cause.message : err.cause);
+        }
+        console.error("----------------------------------\n");
+
+        // 2. Respuesta limpia para el frontend y el móvil
+        io.emit('checkin-error', { error: err.message });
+        res.status(400).json({ success: false, error: err.message });
     }
 });
 

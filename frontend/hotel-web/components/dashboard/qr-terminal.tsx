@@ -85,6 +85,7 @@ export function QRTerminal({ className, onCheckinSuccess }: QRTerminalProps) {
   }, [])
 
   useEffect(() => {
+    const backendUrl = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4001"
     const socket = io({ path: "/socket.io/", transports: ["websocket", "polling"] })
     socketRef.current = socket
 
@@ -95,6 +96,11 @@ export function QRTerminal({ className, onCheckinSuccess }: QRTerminalProps) {
         habitacion: payload.habitacion || "—",
       })
       onCheckinSuccess?.()
+    })
+
+    socket.on("checkin-error", (payload: { error: string }) => {
+      setState("denied")
+      setErrorMsg(payload.error || "Credencial rechazada")
     })
 
     return () => {
@@ -124,6 +130,7 @@ export function QRTerminal({ className, onCheckinSuccess }: QRTerminalProps) {
       const t = setTimeout(() => {
         setState("idle")
         setQrPayload(null)
+        setErrorMsg("")
       }, 8000)
       return () => clearTimeout(t)
     }

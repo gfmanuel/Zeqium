@@ -23,14 +23,17 @@ export function GuestsTable({ className, refreshTrigger }: GuestsTableProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
+  const [error, setError] = useState<string | null>(null)
+
   const loadGuests = useCallback(async () => {
     setIsLoading(true)
+    setError(null)
     try {
       const data = await getActiveGuests()
       setGuests(data.guests || [])
       setLastUpdated(new Date())
-    } catch {
-      // silent fail — show empty
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al cargar huéspedes')
     } finally {
       setIsLoading(false)
     }
@@ -83,6 +86,11 @@ export function GuestsTable({ className, refreshTrigger }: GuestsTableProps) {
           {isLoading ? (
             <div className="flex h-32 items-center justify-center">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : error ? (
+            <div className="flex h-32 flex-col items-center justify-center gap-2 text-center text-red-500">
+              <span className="font-semibold">Fallo de conexión</span>
+              <span className="text-sm">{error}</span>
             </div>
           ) : (
             <Table>
