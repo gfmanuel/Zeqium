@@ -85,9 +85,21 @@ export function QRTerminal({ className, onCheckinSuccess }: QRTerminalProps) {
   }, [])
 
   useEffect(() => {
-    const backendUrl = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3001"
-    const socket = io(backendUrl, { transports: ["websocket"] })
+    // 1. Detectamos automáticamente la IP que estés usando en el navegador
+    const currentHost = window.location.hostname;
+    const protocol = window.location.protocol;
+
+    // 2. Apuntamos al cerebro (API) en el puerto 3001 con la IP correcta
+    const backendUrl = `${protocol}//${currentHost}:3001`;
+
+    // 3. Dejamos que Socket.io negocie la conexión libremente (sin forzar transportes)
+    const socket = io(backendUrl);
+
     socketRef.current = socket
+
+    // Chivatos para la consola
+    socket.on("connect", () => console.log("✅ Socket conectado a:", backendUrl));
+    socket.on("connect_error", (err) => console.error("❌ Fallo Socket:", err.message));
 
     socket.on("new-checkin", (payload: { nombre?: string; apellidos?: string; habitacion?: string }) => {
       setState("granted")
