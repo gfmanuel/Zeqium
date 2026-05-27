@@ -277,7 +277,7 @@ app.post('/api/issuer/credential', authMiddleware(ROLES.POLICE_ADMIN), async (re
 
     const sdJwt = await issuerService.createDNI(mappedData, holderDID);
     const coreJwt = sdJwt.split('~')[0];
-    const credentialHash = crypto.createHash('sha256').update(sdJwt).digest('hex');
+    const credentialHash = crypto.createHash('sha256').update(coreJwt).digest('hex');
 
     // D. Anclaje y Persistencia
     await submitTransaction('PublishCredentialStatus', credentialHash, ISSUER_DID, timestamp);

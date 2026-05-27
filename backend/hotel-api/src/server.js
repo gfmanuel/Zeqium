@@ -145,7 +145,7 @@ app.post('/api/checkin', async (req, res) => {
         // C. Criptografía: Validar firma SD-JWT [cite: 262]
         const rawPayload = await verifierService.verifyPresentation(sdJwt);
         const coreJwt = sdJwt.split('~')[0];
-        const credentialHash = crypto.createHash('sha256').update(sdJwt).digest('hex');
+        const credentialHash = crypto.createHash('sha256').update(coreJwt).digest('hex');
 
         // Helper para reconvertir valores disgregados a strings
         const normalizeClaim = (claim) => {
