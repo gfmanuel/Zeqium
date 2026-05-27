@@ -132,8 +132,14 @@ export interface Guest {
     credential_hash: string
 }
 
-export async function getActiveGuests() {
-    return get<{ guests: Guest[] }>('/guests/active', true)
+export async function getActiveGuests(signal?: AbortSignal) {
+    const res = await fetch(`${API_BASE}/guests/active`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+        signal,
+    })
+    if (res.status === 401) throw new Error("401 Unauthorized")
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return res.json()
 }
 
 // ─── Auditoría ──────────────────────────────────────────
@@ -148,12 +154,26 @@ export interface StayLog {
     credential_hash: string
 }
 
-export async function getAuditLogs() {
-    return get<{ logs: StayLog[] }>('/audit/logs', true)
+export async function getAuditLogs(signal?: AbortSignal) {
+    const token = getToken()
+    const res = await fetch(`${API_BASE}/audit/logs`, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal,
+    })
+    if (res.status === 401) throw new Error("401 Unauthorized")
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return res.json() as Promise<{ logs: StayLog[] }>
 }
 
-export async function getAuditLedger() {
-    return get<{ ledger: unknown[] }>('/audit/ledger', true)
+export async function getAuditLedger(signal?: AbortSignal) {
+    const token = getToken()
+    const res = await fetch(`${API_BASE}/audit/ledger`, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal,
+    })
+    if (res.status === 401) throw new Error("401 Unauthorized")
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return res.json() as Promise<{ ledger: unknown[] }>
 }
 
 export async function exportStaysCSV() {

@@ -86,7 +86,7 @@ export function QRTerminal({ className, onCheckinSuccess }: QRTerminalProps) {
 
   useEffect(() => {
     const backendUrl = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4001"
-    const socket = io({ path: "/socket.io/", transports: ["websocket", "polling"] })
+    const socket = io(backendUrl, { transports: ["websocket"] })
     socketRef.current = socket
 
     socket.on("new-checkin", (payload: { nombre?: string; apellidos?: string; habitacion?: string }) => {

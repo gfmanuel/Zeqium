@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/table"
 import { Search, RefreshCw, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { getActiveGuests, type Guest } from "@/lib/api"
+import { getActiveGuests, clearToken, type Guest } from "@/lib/api"
 
 interface GuestsTableProps {
   className?: string
@@ -25,26 +25,59 @@ export function GuestsTable({ className, refreshTrigger }: GuestsTableProps) {
 
   const [error, setError] = useState<string | null>(null)
 
-  const loadGuests = useCallback(async () => {
+  const loadGuests = useCallback(async (signal?: AbortSignal) => {
     setIsLoading(true)
     setError(null)
     try {
-      const data = await getActiveGuests()
+      const data = await getActiveGuests(signal)   // pasa el signal a tu fetch
+      if (signal?.aborted) return                  // ignorar si ya fue cancelado
       setGuests(data.guests || [])
       setLastUpdated(new Date())
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al cargar huéspedes')
+      if (err instanceof DOMException && err.name === "AbortError") return
+      // Si es 401, token caducado → forzar re-login
+      if (err instanceof Error && err.message.includes("401")) {
+        clearToken()
+        window.location.reload()
+        return
+      }
+      setError(err instanceof Error ? err.message : "Error al cargar huéspedes")
+      setTimeout(() => setError(null), 10000)
     } finally {
-      setIsLoading(false)
+      if (!signal?.aborted) setIsLoading(false)
     }
   }, [])
 
-  // Load on mount and when refresh is triggered (e.g. after checkin)
-  useEffect(() => { loadGuests() }, [loadGuests, refreshTrigger])
-
-  // Auto-refresh every 30s
+  // Mount + refreshTrigger
   useEffect(() => {
-    const interval = setInterval(loadGuests, 30000)
+    const controller = new AbortController()
+    loadGuests(controller.signal)
+    return () => controller.abort()
+  }, [loadGuests, refreshTrigger])
+
+  // Auto-refresh cada 30s
+  // Sustituye el useEffect del auto-refresh
+  useEffect(() => {
+    let retryCount = 0
+    const MAX_RETRIES = 3
+
+    const attempt = () => {
+      const controller = new AbortController()
+      loadGuests(controller.signal).catch(() => {
+        if (retryCount < MAX_RETRIES) {
+          retryCount++
+          // Backoff exponencial: 2s, 4s, 8s
+          setTimeout(attempt, 1000 * Math.pow(2, retryCount))
+        }
+      })
+      return controller
+    }
+
+    const interval = setInterval(() => {
+      retryCount = 0  // reset contador en cada ciclo de 30s
+      attempt()
+    }, 30000)
+
     return () => clearInterval(interval)
   }, [loadGuests])
 
@@ -66,7 +99,7 @@ export function GuestsTable({ className, refreshTrigger }: GuestsTableProps) {
           <CardTitle className="text-lg font-semibold">
             Ocupación en Tiempo Real
           </CardTitle>
-          <Button variant="ghost" size="sm" onClick={loadGuests} disabled={isLoading}>
+          <Button variant="ghost" size="sm" onClick={() => loadGuests()} disabled={isLoading}>
             <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
           </Button>
         </div>

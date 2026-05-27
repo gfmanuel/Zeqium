@@ -7,6 +7,9 @@ const pool = new Pool({
     database: process.env.DB_NAME || 'hotel_db',
     password: process.env.DB_PASSWORD || 'admin',
     port: process.env.DB_PORT || 5432,
+    connectionTimeoutMillis: 3000,
+    idleTimeoutMillis: 10000,
+    statement_timeout: 5000,
 });
 
 // Función para crear la tabla si no existe al arrancar el servidor
