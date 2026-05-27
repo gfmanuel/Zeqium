@@ -130,7 +130,7 @@ app.get('/api/public-key', (_req, res) => {
 });
 
 app.post('/api/checkin', async (req, res) => {
-    const { jwe, nonce } = req.body;
+    const { presentation, nonce } = req.body;
     const timestamp = new Date().toISOString();
 
     try {
@@ -139,8 +139,8 @@ app.post('/api/checkin', async (req, res) => {
         if (!isValidNonce) throw new Error('Nonce inválido, caducado o ya utilizado');
 
         // B. Privacidad: Descifrar JWE [cite: 246]
-        const decryptedPayload = await decryptJWE(jwe, HOTEL_PRIVATE_KEY);
-        const sdJwt = decryptedPayload.sdJwt;
+        //const decryptedPayload = await decryptJWE(jwe, HOTEL_PRIVATE_KEY);
+        const sdJwt = presentation;
 
         // C. Criptografía: Validar firma SD-JWT [cite: 262]
         const rawPayload = await verifierService.verifyPresentation(sdJwt);

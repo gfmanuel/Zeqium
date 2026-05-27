@@ -3,7 +3,7 @@
  * Centraliza todas las llamadas HTTP al backend del Hotel.
  */
 
-const API_BASE = '/api'
+const API_BASE = '/api/hotel'
 
 // ─── Token Management ───────────────────────────────────
 export function getToken(): string | null {

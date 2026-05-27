@@ -15,11 +15,10 @@ import type { QRPayload, RequestedClaim } from '../types/presentation';
 import { getAllCredentials, type Credential } from '../database';
 import { listDisclosableClaims } from '../services/sdjwtPresentation';
 import { submitHotelCheckin } from '../services/hotelCheckin';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack'
+import type { ParamListBase } from '@react-navigation/native'
 
-interface Props {
-    route: { params: { qrPayload: QRPayload } };
-    navigation: any;
-}
+type Props = NativeStackScreenProps<ParamListBase & { HotelCheckin: { qrPayload: QRPayload } }, 'HotelCheckin'>
 
 export function HotelCheckinScreen({ route, navigation }: Props) {
     const { qrPayload } = route.params;

@@ -4,6 +4,8 @@
  * Inicializa la base de datos y configura la navegación.
  */
 
+import 'react-native-get-random-values';
+
 import React, { useState, useEffect } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -60,7 +62,7 @@ export default function App() {
                 <Stack.Navigator screenOptions={{ headerShown: false }}>
                     <Stack.Screen name="Home" component={HomeScreen} />
                     <Stack.Screen name="Scanner" component={ScannerScreen} />
-                    <Stack.Screen name="HotelCheckin" component={HotelCheckinScreen} />
+                    <Stack.Screen name="HotelCheckin" component={HotelCheckinScreen as any} />
                     <Stack.Screen name="CredentialDetail" component={CredentialDetailScreen} />
                     <Stack.Screen name="Settings" component={SettingsScreen} />
                 </Stack.Navigator>
