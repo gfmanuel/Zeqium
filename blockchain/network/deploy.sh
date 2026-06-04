@@ -10,7 +10,7 @@ NC='\033[0m'
 echo -e "${GREEN}⚙️ Enviando comandos de despliegue al contenedor CLI...${NC}"
 
 # Ejecutamos todo el bloque dentro del contenedor 'cli'
-docker exec cli bash -c '
+docker exec -i cli bash << 'EOF'
 set -e
 CHANNEL_NAME="zeqium-channel"
 CC_NAME="zeqium"
@@ -67,7 +67,7 @@ export CORE_PEER_TLS_ROOTCERT_FILE="/opt/gopath/src/github.com/hyperledger/fabri
 peer lifecycle chaincode install zeqium.tar.gz
 
 echo "=== 6. Obteniendo Package ID ==="
-CC_PACKAGE_ID=$(peer lifecycle chaincode queryinstalled | grep $CC_LABEL | awk "{print \$3}" | sed "s/,//")
+CC_PACKAGE_ID=$(peer lifecycle chaincode queryinstalled | grep $CC_LABEL | awk '{print $3}' | sed 's/,//')
 
 echo "=== 7. Aprobando (Policia) ==="
 export CORE_PEER_ADDRESS=peer0.policia.zeqium.com:7051
@@ -85,5 +85,5 @@ echo "=== 9. Commit en la red ==="
 echo "⏳ Dando 5 segundos a los nodos para sincronizar las aprobaciones..."
 sleep 5
 peer lifecycle chaincode commit -o orderer0.zeqium.com:7050 --ordererTLSHostnameOverride orderer0.zeqium.com --channelID $CHANNEL_NAME --name $CC_NAME --version $CC_VERSION --sequence $CC_SEQUENCE --tls --cafile $ORDERER_CA --peerAddresses peer0.policia.zeqium.com:7051 --tlsRootCertFiles /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/policia.zeqium.com/peers/peer0.policia.zeqium.com/tls/ca.crt --peerAddresses peer0.hotel.zeqium.com:9051 --tlsRootCertFiles /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto/peerOrganizations/hotel.zeqium.com/peers/peer0.hotel.zeqium.com/tls/ca.crt --signature-policy "OR('PoliciaMSP.peer','HotelMSP.peer')"
-
+EOF
 echo -e "${GREEN}✅ Blockchain HA desplegada correctamente!${NC}"

@@ -44,7 +44,7 @@ docker compose up -d
 # 5. Espera de cortesía
 # Importante: Raft necesita unos segundos para elegir al líder entre los 3 Orderers
 echo -e "${BLUE}⏳ Esperando 15 segundos para la estabilización del consenso Raft...${NC}"
-sleep 15
+sleep 40
 
 # 6. Ejecutar el despliegue del canal y chaincode
 echo -e "${GREEN}⚙️ Paso 5: Ejecutando deploy.sh (Canal + Chaincode)...${NC}"
