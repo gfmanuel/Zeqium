@@ -47,6 +47,7 @@ dist/
 build/
 .next/
 coverage/
+/package.json
 
 # --- 4. MOBILE / FLUTTER ---
 **/mobile/**/.dart_tool/
@@ -82,6 +83,7 @@ build-hotel-web.sh
 build-landing-web.sh
 deploy-police-web.sh
 setup-mobile.sh
+scripts/
 
 # --- 7. ARCHIVOS QUE APARECEN EN TU GIT STATUS Y NO DEBEN SUBIRSE ---
 ../docker-compose.yaml              
@@ -96,7 +98,7 @@ setup-mobile.sh
 bundle-hotel/
 bundle-landing/
 bundle-police/
-police-api/
+/police-api/
 bundle-hotel.tar.gz
 bundle-landing.tar.gz
 bundle-main.tar.gz
