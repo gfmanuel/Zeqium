@@ -1,5 +1,5 @@
 # =================================================================
-# ZEQIUM - MASTER GITIGNORE (versión FINAL y completa - marzo 2026)
+# ZEQIUM - MASTER GITIGNORE (versión FINAL y completa - junio 2026)
 # =================================================================
 
 # --- 1. SEGURIDAD Y SECRETOS (CRÍTICO - NUNCA SUBIR) ---
@@ -77,6 +77,11 @@ generateHotelKey.js
 test-checkin.js
 test-*.js
 **/tests/local/
+simulador-wallet.js
+build-hotel-web.sh
+build-landing-web.sh
+deploy-police-web.sh
+setup-mobile.sh
 
 # --- 7. ARCHIVOS QUE APARECEN EN TU GIT STATUS Y NO DEBEN SUBIRSE ---
 ../docker-compose.yaml              
@@ -86,3 +91,13 @@ test-*.js
 ../blockchain/chaincode/zeqium     
 ../blockchain/network/crypto-config/ 
 ../blockchain/network/connection-*.json 
+
+# --- 8. CARPETAS FRONTEND Y BUNDLES ---
+bundle-hotel/
+bundle-landing/
+bundle-police/
+police-api/
+bundle-hotel.tar.gz
+bundle-landing.tar.gz
+bundle-main.tar.gz
+bundle-police.tar.gz
